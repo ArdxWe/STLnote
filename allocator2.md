@@ -147,3 +147,98 @@ class vector {
 ```
 
 ### 第一级配置器 `__malloc_alloc_template`
+
+```cpp
+template <int inst>
+class __malloc_alloc_template {
+    private:
+    // 处理内存不足
+    static void* oom_malloc(size_t);
+    static void* oom_realloc(void*, size_t);
+    static void (*__malloc_alloc_oom_handler) ();
+
+    public:
+    // 分配 n bytes
+    static void* allocate(size_t n) {
+        void* result = malloc(n);  // 直接malloc
+        // out of memory
+        if (0 == result) {
+            result = oom_malloc(n);
+        }
+        return result;
+    }
+
+    // 回收 p
+    static void deallocate(void* p, size_t /* n */) {
+        free(p);
+    }
+
+    // 再分配 p new_sz bytes
+    static void* reallocate(void* p, size_t /* old_sz */, size_t new_sz) {
+        void* result = realloc(p, new_sz);  // 直接realloc
+        // out of memory
+        if (0 == result) {
+            result = oom_realloc(p, new_sz);
+        }
+        return result;
+    }
+
+    // 指定 out of memory handler
+    static void (*set_malloc_handler(void (*f)()) ) () {  // 这一行的语法我并没有看懂
+        void (*old)() = __malloc_alloc_oom_handler;
+        __malloc_alloc_oom_handler = f;
+        return (old);  // 返回之前的 out of memory handler
+    }
+};
+
+// 初始设为空指针
+template <int inst>
+void (* __malloc_alloc_template<inst>::__malloc_alloc_oom_handler) () = 0;
+
+// out of memory malloc
+template <int inst>
+void* __malloc_alloc_template<inst>::oom_malloc(size_t n) {
+    void (*my_alloc_handler) ();
+    void *result;
+
+    for (;;) {  // 一直尝试 释放 配置...
+        my_malloc_handler = __malloc_alloc_oom_handle;
+        if (0 == my_malloc_handler) {
+            __THROW_BAD_ALLOC;  // 未指定处理例程 直接抛异常
+        }
+        (*my_malloc_handler)();  // 处理例程
+        result = malloc(n);  // 配置内存
+        if (result) {
+            return result;
+        }
+    }
+}
+
+// out of memory realloc
+template <int inst>
+void* __malloc_alloc_template<inst>::oom_realloc(void* p, size_t n) {
+    void (*my_alloc_handler) ();
+    void *result;
+
+    for (;;) {  // 一直尝试 释放 配置...
+        my_malloc_handler = __malloc_alloc_oom_handle;
+        if (0 == my_malloc_handler) {
+            __THROW_BAD_ALLOC;  // 未指定处理例程 直接抛异常
+        }
+        (*my_malloc_handler)();  // 处理例程
+        result = realloc(p, n);  // 配置内存
+        if (result) {
+            return result;
+        }
+    }
+}
+
+// inst 指定为 0
+typedef __malloc_alloc_template<0> malloc_alloc;
+```
+
+`__malloc_alloc_oom_handler` 是内存不足处理例程, 设定此函数是客端责任.
+
+### 第二级配置器 `__default_alloc_template`
+
+为了避免小额区块造成的内存碎片和配置时的额外负担, 采取以下策略
