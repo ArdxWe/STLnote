@@ -485,3 +485,41 @@ char* __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nob
     }
 }
 ```
+
+### 内存基本处理工具
+
+`STL` 定义了五个作用于未初始化空间的全局函数
+
+* `construct()`
+* `destroy()`
+* `uninitialized_copy()`
+* `uninitialized_fill()`
+* `uninitialized_fill_n()`
+
+前两个已经介绍了 这里描述后三个
+
+```cpp
+// uninitialized_copy
+template <class InputIterator, class ForwardIterator>
+ForwardIterator uninitialized_copy(InputIterator first, InputIterator last, ForwardIterator result);
+```
+
+将 `[result, result+(last-first))` 范围内所指的对象分别初始化为 `[first, last)` 范围内迭代器所指的对象.
+
+```cpp
+// uninitialized_fill
+template <class ForwardIterator, class T>
+void uninitialized_fill(ForwardIterator first, ForwardIterator last, const T& x);
+```
+
+将 `[first, last)` 范围内所指的对象分别初始化为 `x` .
+
+```cpp
+// uninitialized_fill_n
+template <class ForwardIterator, class Size, class T>
+void uninitialized_fill(ForwardIterator first, Size n, const T& x);
+```
+
+将 `[first, first+n)` 范围内所指的对象分别初始化为 `x` .
+
+具体实现见下章.
