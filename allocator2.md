@@ -296,6 +296,7 @@ class __default_alloc_template {
     static void* refill(size_t n);
     static char* chunk_alloc(size_t size, int& nobjs);
 
+    // memory pool 起始位置
     static char* start_free;
     static char* end_free;
     static size_t heap_size;
@@ -421,5 +422,66 @@ void* __default_alloc_template<threads, inst>::refill(size_t n) {
         }
     }
     return result;
+}
+```
+
+#### 内存池 `memory pool`
+
+```cpp
+// 用于给 free_list 提供内存
+// size 为 8 的倍数
+template <bool threads, int inst>
+char* __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs) {
+    char* result;
+    size_t total_bytes = size * nobjs;
+    size_t bytes_left = end_free - start_free;  // 内存池剩余空间
+
+    if (bytes_left >= total_bytes) {  // 够用
+        result = start_free;
+        start_free += total_bytes;
+        return result;
+    }
+    else if (bytes_left >= size) {  // 不够 但是够一个以上区块
+        nobjs = bytes_left / size;  // 更改 nobjs 为当前已有空间的最大分配个数
+        total_bytes = size * nobjs;
+        result = start_free;
+        start_free += total_bytes;  // 更新 memory pool 起始位置
+        return result;
+    }
+    else {  // 当前 memory pool 一个区块也无法提供
+        size_t bytes_to_get = 2 * total_bytes + ROUND_UP(heap_size >> 4);  // 内存池增加的量 (2 * x + z), x 为当前需要的字节数, z 为当前 heap_size 大小除以 16 上调至 8 的倍数 例如 32 -> 2 -> 8
+
+        // 尝试将剩余内存加入 free_list 争取索引最大
+        // 例如 size = 24, memory_left = 23, 此时会把这 23 个字节加入到 free_list[1]
+        if (bytes_left > 0) {  // memory pool 还有内存
+            obj* volatile* my_free_list = free_list + FREELIST_INDEX(bytes_left);  // 得到合适索引
+            ((obj*)start_free) -> free_list_link = *my_free_list;  // 头插法插入
+            *my_free_list = (obj*) start_free;  // 更新头节点
+        }
+        start_free = (char *) malloc(bytes_to_get);  // bytes_to_get 可以保证为 8 的倍数
+
+        if (0 == start_free) {  // malloc 失败
+            int i;
+            obj* volatile* my_free_list, *p;
+            // 望 free_list 大的方向找
+            for (i = size; i <= __MAX_BYTES; i += __ALIGN) {
+                my_free_list = free_list + FREELIST_INDEX(i);
+                p = *my_free_list;
+                if (0 != p){  // free_list 大的方向有
+                    *my_free_list = p -> free_list_link;  // 释放一个区块
+                    start_free = (char*) p;
+                    end_free = start_free + i;
+                    return (chunk_alloc(size, nobjs));  // 修正 nobjs
+                }
+            }
+            end_free = 0;
+            start_free = (char*)malloc_alloc::allocate(bytes_to_get);  // 第一级配置器
+        }
+        heap_size += bytes_to_get;  // heap_size 是一个随着此函数的调用 越来越大的一个数 用于动态调整
+        end_free = start_free + bytes_to_get;
+        // 上述操作只是得到了想要得到的内存空间, 并未更新实际分配的 nobjs
+        // 修正 nobjs  需要深刻理解这里递归调用的意义
+        return (chunk_alloc(size, nobjs));
+    }
 }
 ```
