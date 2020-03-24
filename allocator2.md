@@ -242,3 +242,184 @@ typedef __malloc_alloc_template<0> malloc_alloc;
 ### 第二级配置器 `__default_alloc_template`
 
 为了避免小额区块造成的内存碎片和配置时的额外负担, 采取以下策略
+
+* 区块大于 `128 bytes` , 转给第一级配置器处理
+* 小于 `128 bytes` , 使用 `memory pool`
+
+第二级配置器会将任何小于 `128 bytes` 的内存需求上调到 `8` 的倍数, 例如 `30 bytes->32 bytes`, 维护 `16` 个 `free-lists` , 分别管理 `8 bytes->16 bytes->...->128 bytes` 的区块
+
+```cpp
+// free-lists
+union obj {
+    union obj* free_list_link;
+    char client_data[1];  // for client 唯一的作用是避免指针的强制转换
+}
+```
+
+可以这样来理解: `obj` 本身的地址可以视为当前区块的指针, `obj->free_list_link` 即 `obj` 内部存储的内容是下个 `obj` , 构成链表, 如下图.
+
+![free-lists](./image/1.jpg)
+
+第二级配置器的部分实现:
+
+```cpp
+enum {__ALIGN = 8};  // bytes 上调间距
+enum {__MAX_BTYES = 128}  // 区块上限
+enum {__NFREELISTS = __MAX_BYTES / __ALIGN};  // free-lists 个数
+
+// 第二级配置器
+// 第一参数用于多线程环境 暂不讨论
+template <bool threads, int inst>
+class __default_alloc_template {
+    private:
+    // bytes上调至 8 的倍数
+    static size_t ROUND_UP(size_t bytes) {
+        return (((bytes) + _ALIGN - 1) & ~(__ALIGN - 1))  // + 7 低三位置0
+    }
+
+    private:
+    // free-lists
+    union obj {
+        union obj* free_list_link;
+        char client_data[1];
+    };
+
+    private:
+    // free-list 大小为 16
+    static obj* volatile free_list[_NFREELISTS];
+    // 根据区块大小求 free-list 索引
+    static size_t FREELIST_INDEX(size_t bytes) {
+        return (((bytes) + _ALIGN - 1)/_ALIGN - 1); // (( n + 7 ) / 8 ) - 1
+    }
+
+    // free-list为空时调用
+    static void* refill(size_t n);
+    static char* chunk_alloc(size_t size, int& nobjs);
+
+    static char* start_free;
+    static char* end_free;
+    static size_t heap_size;
+
+    public:
+
+    static void* allocate(size_t n);
+    static void* deallocate(void* p, size_t n);
+    static void* reallocate(void* p, size_t old_sz, size_t new_sz);
+};
+
+// 定义与初值设定 start_free
+template <bool threads, int inst>
+char* __default_alloc_template<threads, inst>::start_free = 0;
+
+// 定义与初值设定 end_free
+template <bool threads, int inst>
+char* __default_alloc_template<threads, inst>::end_free = 0;
+
+// 定义与初值设定 heap_size
+template <bool threads, int inst>
+size_t __default_alloc_template<threads, inst>::heap_size = 0;
+
+// 定义与初值设定 free_list
+template <bool threads, int inst>
+__default_alloc_template<threads, inst>::obj* volatile __default_alloc_template<threads, inst>::free_list[__NFREELISTS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, };
+
+```
+
+#### 空间配置 `allocate()`
+
+```cpp
+static void* allocate(size_t n) {
+    obj* voalite* my_free_list;
+    obj* result;
+
+    // 大于  128bytes 使用第一级配置器
+    if (n > (size_t) __MAX_BYTES) {
+        return (malloc_alloc::allocate(n));
+    }
+
+    // 寻找 free-list 指定元素
+    my_free_list = free_list + FREELIST_INDEX(n);  // 指针运算
+    result = *my_free_list;  // free-list 对应元素 类型为 obj*
+    if (result == 0) {
+        // 对应位置为空则填充
+        void* r = refill(ROUND_UP(n));  // n上调之后再调用
+        return r;
+    }
+
+    // 删除 free-list 对应位置头节点
+    *my_free_list = result->free_list_link;  // 指向下一个区块
+    return result;
+};
+```
+
+可以通过下图理解:
+
+![allocate()](./image/2.jpg)
+
+#### 空间释放 `deallocate()`
+
+```cpp
+static void deallocate(void* p, size_t n) {
+    obj* q = obj* p;
+    obj* volatile* my_free_list;
+
+    // 大于 128 bytes 使用第一级配置器
+    if (n > (size_t) __MAX_BYTES) {
+        malloc_alloc::deallocate(p, n);
+        return;
+    }
+
+    //可以认为此时 n 为 8 的倍数
+    // 寻找 free-list 指定元素
+    my_free_list = free_list + FREELIST_INDEX(n);
+
+    // 链表的头节点插入操作
+    q->free_list_link = *my_free_list;
+    *my_free_list = q;
+}
+```
+
+原理与空间配置类似.
+
+#### 重新填充 `refill()`
+
+当空间配置 `allocate()` 发现 `free_list` 已经空了就使用 `refill()` , 新的内存来自 `chunk_alloc()` , 默认获得 `20` 个区块, 内存空间不足可能会小于 `20` , 看代码:
+
+```cpp
+template <bool threads, int inst>
+void* __default_alloc_template<threads, inst>::refill(size_t n) {
+    int nobjs = 20;
+
+    // 尝试获得 nobjs 个区块
+    // nobjs 引用传递 可能会更改到小于 20
+    char* chunk = chunk_alloc(n, nobjs);
+    obj* volatile* my_free_list;
+    obj* result;
+    obj* current_obj;
+    obj* next_obj;
+    int i;
+
+    // 如果 chunk_alloc() 更改 nobjs 为 1 , 直接返回
+    if (1 == nobjs) {
+        return chunk;
+    }
+
+    // 将 chunk 串成链表
+    my_free_list = free_list + FREELIST_INDEX(n);  // free_list 指定索引
+    result = (obj*) chunk;  // chunk 起始位置用来返回
+    *my_free_list = next_obj = (obj*) (chunk + n);  // 链表之间内存间隔为 n
+
+    for (i = 1; ; i++) {
+        currnet_obj = next_obj;
+        next_obj = (obj*) ((char*)next_obj+n);
+        if (nobjs - 1 == i) {  // 最后一个
+            current_obj->free_list_link = 0;
+            break;
+        }
+        else {
+            current_obj->free_list_link = next_obj;
+        }
+    }
+    return result;
+}
+```
