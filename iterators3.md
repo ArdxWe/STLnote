@@ -126,4 +126,27 @@ struct ListIter {
 用迭代器 `ListIter` 将容器 `List` 和算法 `find()` 结合:
 
 ```cpp
+List<int> mylist;
+
+mylist.insert_front(1);
+mylist.insert_end(2);
+mylist.display(); // (1, 2)
+
+// ListIter 是容器 listItem<int> 装的数据
+ListIter<ListItem<int>> begin(mylist.front());
+ListIter<ListItem<int>> end;
+ListIter<ListItem<int>> iter = find(begin, end, 2);
 ```
+
+这里存在的问题是 `find()` 函数比较的时候用的是 `*iter != value` , 而 `value` 是 `int` , `*iter` 类型是 `ListItem<int>`, 所以需要为 `ListItem` 编写 `operator!=` 重载函数.
+
+```cpp
+template <typename T>
+bool operator!=(const ListItem<T>& item, T n) {
+    return item.value() != n;
+}
+```
+
+看到这里细心的读者可能会想: `ListItem<T>` 也没有 `value()` 函数呀, 这里主要介绍思想, 你只需要明白这些函数的意义就好 `:)`
+
+显然, 为了设计迭代器, 我们暴露了太多 `List` 的实现细节. 也就是说, 迭代器的设计不可避免地需要了解相应的容器或者说数据. 所以每一个 `STL` 容器都有它专属的迭代器.
