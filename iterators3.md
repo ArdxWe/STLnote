@@ -397,3 +397,31 @@ struct iterator_traits<const T*> {
     typedef random_access_iterator_tag iterator_category;
 };
 ```
+
+## `std::iterator` 的保证
+
+任何迭代器都应提供上述五个内嵌相应型别让 `traits` 提取, 为了方便, `STL` 提供了一个 `iterators class` 供新迭代器的继承:
+
+```cpp
+template <class Category,
+          class T,
+          class Distance = ptrdiff_t,
+          class Pointer = T*,
+          class Reference = T&>
+struct iterator {
+    typedef Category iterator_category;
+    typedef T value_type;
+    typedef Distance difference_type;
+    typedef Pointer pointer;
+    typedef Reference reference;
+};
+```
+
+后三个有默认值, 所以继承只需要提供前两个参数, 迭代器种类和值类型, 举个例子:
+
+```cpp
+template <class Item>
+struct ListIter : public std::iterator<std::forward_iterator_tag, Item> {...}
+```
+
+`traits` 技法利用内嵌型别和编译器的参数推导, 增强了 `C++` 在参数推导方面的能力, 大量用于 'STL` 的实现.
