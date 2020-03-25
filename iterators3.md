@@ -150,3 +150,216 @@ bool operator!=(const ListItem<T>& item, T n) {
 看到这里细心的读者可能会想: `ListItem<T>` 也没有 `value()` 函数呀, 这里主要介绍思想, 你只需要明白这些函数的意义就好 `:)`
 
 显然, 为了设计迭代器, 我们暴露了太多 `List` 的实现细节. 也就是说, 迭代器的设计不可避免地需要了解相应的容器或者说数据. 所以每一个 `STL` 容器都有它专属的迭代器.
+
+## 迭代器相应型别
+
+迭代器所指之物就是一种型别, 在使用迭代器时我们必然会用到, 这里可以使用函数模板的参数推导机制:
+
+```cpp
+template <class I, class T>
+void func_impl(I iter, T t);  // T 即是所指之物型别
+
+template <class I>
+void func(I iter) {
+    func_impl(iter, *iter);  // 将 *iter 做为实参
+}
+```
+
+然而迭代器相应型别有五种, 需要一些更全面的方法.
+
+## `traits` 技法
+
+`value_type` 用于返回值上述方法就失效了, 很直观的想法是声明内嵌型别:
+
+```cpp
+template <class T>
+struct MyIter {
+    typedef T value_type;  // 内嵌型别声明
+    ...
+}
+
+template <class I>
+typename I::value_type func(I ite) {  // 注意返回值类型
+    return *ite;
+}
+```
+
+这种做法也存在问题: 原生指针不是 `class type` , 但 `STL` 必然需要接受原生指针作为迭代器, 可以使用 `template partial specialization` .
+
+```cpp
+template <class I>
+typename iterator_traits<I>::value_type  // 返回值类型 可以对此进行偏特化
+func(I ite) {
+    return *ite;
+}
+```
+
+精彩的来了:
+
+```cpp
+// 迭代器特性
+template <class I>
+struct iterator_traits {
+    typedef typename I::value_type value_type;
+}
+
+// 特化版 原生指针
+template <class T>
+struct iterator_traits<T*> {  // 迭代器是原生指针 T*
+    typedef T value_type;
+}
+
+// 特化版 const 指针
+// 这里我们的目的是得到指针所指对象的类型 所以应当去掉 const
+template <class T>
+struct iterator_traits<const T*> {  // 迭代器是原生指针 T*
+    typedef T value_type;
+}
+```
+
+我们形象的称 `iterator_traits` 为特性萃取机.
+
+迭代器 `5` 种相应型别都加入萃取机:
+
+```cpp
+template <class I>
+struct iterator_traits {
+    typedef typename I::iterator_category iterator_category;
+    typedef typename I::value_type value_type;
+    typedef typename I::difference_type difference_type;
+    typedef typename I::pointer pointer;
+    typedef typename I::reference reference;
+}
+```
+
+如上所述, 会为 `pointer` 和 `pointer-to-const` 添加特化版本.
+
+### `difference_type`
+
+表示两个迭代器之间的距离. 例如 `STL` 中的 `count()` .
+
+```cpp
+template <class I, class T>
+typename iterator_traits<I>::difference_type  // 返回值类型
+count (I first, I last, const T& value) {
+    typename iterator_traits<I>::difference_type n = 0;
+    for ( ; first!=last; ++first) {
+        if (*first == value) {
+            n++;
+        }
+    }
+    return n;
+}
+
+// 泛化版
+template <class I>
+struct iterator_traits {
+    typedef typename I::different_type difference_type;
+}
+
+// 特化版本 原生指针 直接返回 ptrdiff_t
+template <class T>
+struct iterator_traits<T*> {
+    typedef ptrdiff_t difference_type;
+}
+
+// 特化版本 const 指针 直接返回 ptrdiff_t
+template <class T>
+struct iterator_traits<const T*> {
+    typedef ptrdiff_t difference_type;
+}
+```
+
+### `reference type`
+
+迭代器分为两种:
+
+* 不允许改变所指对象之内容 `constant iterators` , 例如 `const int* pic` ;
+
+* 允许改变所指对象之内容 `mutable iterators` , 例如 `int* pi` ;
+
+迭代器 `p` `value type` 为 `T` , 当为 `mutable iterators` 时, `*p` 应为 `T&` , 当为 `constant iterators` 时, `*p` 应为 `const T&`. 显然都应该为左值! 实现见下节.
+
+### `pointer type`
+
+显然指的是 迭代器所指之物的指针.看代码, 包含上一章节的 `reference type`.
+
+```cpp
+template <class I>
+struct iterator_traits {
+    ...
+    typedef typename I::pointer pointer;
+    typedef typename I::reference reference;
+};
+
+// 偏特化版 原生指针
+template <class T>
+struct iterator_traits<T*> {
+    ...
+    typedef T* pointer;
+    typedef T& reference;
+};
+
+// 偏特化版 const 指针
+template <class T>
+struct iterator_traits<const T*> {
+    ...
+    typedef const T* pointer;
+    typedef const T& reference;
+};
+```
+
+### `iterator_category`
+
+迭代器被分为 `5` 类:
+
+* `Input Iterator` : `read only`
+
+* `Output Iterator` : `write only`
+
+* `Forward Iterator` : `read and write`
+
+* `Bidirectional Iterator` : `read and write` , 双向移动
+
+* `Random Access Iterator` : `read and write` , 随意移动
+
+我们设计的算法应该对每个迭代器提供明确定义, 更强化的迭代器提供允许范围内的更加高效的定义.
+
+举个例子, `advance()` 接受两个参数, 一个迭代器, 一个前近距离, 我们可以针对不同的迭代器设置不同的函数, 根据迭代器的类型来调用不同的函数, 在执行期间判断效率不高, 我们可以重载 `advance()` , 添加第三个参数迭代器类型. 看代码:
+
+```cpp
+// 标记型别
+struct input_iterator_tag {};
+struct output_iterator_tag {};
+struct forward_iterator_tag : public input_iterator_tag {};
+struct bidirectional_iterator_tag : public forward_iterator_tag {};
+struct random_access_iterator_tag : public bidirectional_iterator_tag {};
+
+// 重载 __advance()
+template <class InputIterator, class Distance>
+inline void __advance(InputIterator& i, Distance n, input_iterator_tag) {
+    while (n--) {
+        i++;
+    }
+}
+
+template <class ForwardIterator, class Distance>
+inline void __advance(ForwardIterator& i, Distance n, bidirectional_iterator_tag) {
+    __advance(i, n, input_iterator_tag());
+}
+
+template <class BidiectionalIterator, class Distance>
+inline void __advance(BidiectionalIterator& i, Distance n, bidirectional_iterator_tag) {
+    if (n >= 0) {
+        while (n--) ++i;
+    }
+    else {
+        while (n++) --i;
+    }
+}
+
+template <class RandomAccessIterator, class Distance>
+inline void __advance(RandomAccessIterator& i, Distance n, random_access_iterator_tag) {
+    i += n;
+}
+```
