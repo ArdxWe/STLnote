@@ -343,6 +343,7 @@ inline void __advance(InputIterator& i, Distance n, input_iterator_tag) {
     }
 }
 
+// 因为是继承 所以 当传递一个 forwardIterator 会直接调用上面的函数 所以可以省略
 template <class ForwardIterator, class Distance>
 inline void __advance(ForwardIterator& i, Distance n, bidirectional_iterator_tag) {
     __advance(i, n, input_iterator_tag());
@@ -362,4 +363,37 @@ template <class RandomAccessIterator, class Distance>
 inline void __advance(RandomAccessIterator& i, Distance n, random_access_iterator_tag) {
     i += n;
 }
+```
+
+现在我们需要上层接口, 上层接口当然只需要前两个参数, 接口里面调用 `__advance()` , 其中第三个参数通过 `traits` 机制获得.
+
+```cpp
+// 是的 一切都是那么自然
+template <class InputIterator, class Distance>
+inline void advance(InputIterator& i, Distance n) {
+    __advance(i, n, iterator_traits<InputIterator>::iterator_category());
+}
+```
+
+然后在 `traits` 中加入相应型别:
+
+```cpp
+template <class I>
+struct iterator_traits {
+    typedef I::iterator_category iterator_category;
+}
+
+// 偏特化版 原生指针
+// 原生指针显然属于 random_access_iterator_tag
+template <class T>
+struct iterator_traits<T*> {
+    typedef random_access_iterator_tag iterator_category;
+};
+
+// 偏特化版 const 指针
+// const 指针显然属于 random_access_iterator_tag
+template <class T>
+struct iterator_traits<const T*> {
+    typedef random_access_iterator_tag iterator_category;
+};
 ```
