@@ -125,5 +125,105 @@ struct __list_node {
 迭代器设计
 
 ```cpp
+template <class T, class Ref, class Ptr>
+struct __list_iterator {
+    typedef __list_iterator<T, T&, T*> iterator;
+    typedef __list_iterator<T, Ref, Ptr> self;
+    // traits 型别
+    typedef bidirectional_iterator_tag iterator_category;
+    typedef T value_type;
+    typedef Ptr Pointer;
+    typedef Ref reference;
+    typedef __list_node<T>* link_type;
+    typedef size_t size_type;
+    typedef ptrdiff_t difference_type;
 
+    link_type node;  // 指向节点的指针
+
+    // constructor
+    __list_iterator(link_type x) : node(x) {}  // 节点指针
+    __list_iterator() {}
+    __list_iterator(const iterator& x) : node(x.node) {}  // iterator 的引用
+    //  == 看指向节点的指针
+    bool operator==(const self& x) const {
+        return node == x.node;
+    }
+    // != 看指向节点的指针
+    bool operator!=(const self& x) const {
+        return node != x.node;
+    }
+    // 解引用 得到节点的数据
+    reference operator*() const {
+        return (*node).data;
+    }
+    // -> 返回对应数据的指针
+    pointer operator->() const {
+        return &(operator*());
+    }
+
+    self& operator++() {
+        node = (link_type) ((*node).next());
+        return *this;
+    }
+
+    self operator++(int) {
+        self tmp = *this;
+        ++(*this);
+        return tmp;
+    }
+
+    self& operator--() {
+        node = (link_type) ((*node).prev());
+        return *this;
+    }
+
+    self operator--(int) {
+        self tmp = *this;
+        --(*this);
+        return tmp;
+    }
+}
+```
+
+`list` 的构造
+
+```cpp
+template <class T, class Allloc = alloc>  // 默认使用 alloc
+class list {
+    protected:
+
+    typedef __list_node<T> list_node;
+    typedef simple_alloc<list_node, Alloc> list_node_allocator;
+
+    link_type get_node() {
+        return list_node_allocator::allocate();
+    }
+
+    link_type put_node(link_type p) {
+        return list_node_allocator::deallocate(p);
+    }
+
+    link_type create_node(const T& x) {
+        link_type p = get_node();
+        construct(&p->data, x);
+        return p;
+    }
+
+    void destroy_node(link_type p) {
+        destroy(&p->data);
+        put_node(p);
+    }
+
+    void empty_initialize() {
+        node = get_node();
+        node->next = node;  // 双向链表
+        node->prev = node;
+    }
+
+    public:
+
+    list() {
+        empty_initialize();
+    }
+}
 ```
