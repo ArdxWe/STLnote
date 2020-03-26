@@ -23,8 +23,8 @@ class vector {
     typedef ptrdiff_t difference_type;
 
     protected:
-    // 空间配置器
-    typedef simple_alloc<value_type, Alloc> data_allocator;
+
+    typedef simple_alloc<value_type, Alloc> data_allocator;  // 空间配置器
 
     iterator start;  // 头
     iterator finish;  // 使用元素的尾部
@@ -33,7 +33,7 @@ class vector {
 }
 ```
 
-显然, 利用 `start` `finish` `end_of_storage` 很容易写出 `vector` 大小, 容量, 空容器的判断, 不再赘述.
+显然, 利用 `start` `finish` `end_of_storage` 很容易写出 `vector` 大小, 容量, 空容器的判断这些函数, 这里不再赘述.
 
 缺省使用 `alloc` 做为空间配置器, 还定义了对应的 `simple_alloc` : `data_allocator` . 真正配置空间时使用 `data_allocator::allocate(n)` 等函数.
 
@@ -52,8 +52,8 @@ void fill_ininialize(size_type n, const T& value) {
 
 iterator allocate_and_fill(size_type n, const T& x) {
     // 第二章都有介绍
-    iterator result = data_allocator::allocate(n);
-    uninitialized_fill_n(result, n, x);
+    iterator result = data_allocator::allocate(n);  // 分配 n * sizeof(T) 内存 返回头指针
+    uninitialized_fill_n(result, n, x);  // 填充值 通过 traits 机制提升效率
     return result;
 }
 ```
@@ -67,39 +67,40 @@ void push_back(const T& x) {
         finish++;
     }
     else {
-        insert_aux(end(), x);
+        insert_aux(end(), x);  // 尾部
     }
 }
 
 template <class T, class Alloc>
 void vector<T, Alloc>::insert_aux(iterator positon, const T& x) {
-    if (finish != end_of_storage) {
-        construct(finish, *(finish-1));
+    if (finish != end_of_storage) {  // 还有空间
+        construct(finish, *(finish-1));  // 最后一个元素复制到新的空间
         finish++;
-        T x_copy = x;
-        copy_backend(positon, finish - 2, finish - 1);
-        *positon = x_copy;
+        T x_copy = x;  // 不是很懂这里为什么要保存 x
+        copy_backend(positon, finish - 2, finish - 1);  // positon 到 finish - 2 往后移动
+        *positon = x_copy;  // 赋值
     }
     else {  // 无多余空间
         const size_type old_size = size();
-        const size_type len = old_size != 0 ? 2*old_size : 1;  // 初始是 0 就变为 1 初试不为 0 就 乘 2
-        iterator new_start = data_allocator::allocate(n);
+        const size_type len = old_size != 0 ? 2*old_size : 1;  // 初始是 0 就变为 1 不为 0 就 乘 2
+        iterator new_start = data_allocator::allocate(n);  // 分配空间
         iterator new_finish = new_start;
         try {
+            // 简单的复制
             new_finish = uninitialized_copy(start, positon, new_start);
             construct(new_finish, x);
             new_finish++;
             new_finish = uninitialized_copy(positon, finish, new_finish);
         }
         catch(...) {
-            destroy(new_start, new_finish);
-            data_allocator::deallocate(new_start, len);
+            destroy(new_start, new_finish);  // 析构
+            data_allocator::deallocate(new_start, len);  // 释放空间
             throw;
         }
 
-        destroy(begin(), end());
-        deallocate();
-
+        destroy(begin(), end());  // 原来的空间析构
+        deallocate();  // 释放空间
+        // 更新迭代器标志
         start = new_start;
         finish = new_finish;
         end_of_storage = new_start + len;
@@ -160,12 +161,12 @@ struct __list_iterator {
     pointer operator->() const {
         return &(operator*());
     }
-
+    // ++i
     self& operator++() {
         node = (link_type) ((*node).next());
         return *this;
     }
-
+    // i++
     self operator++(int) {
         self tmp = *this;
         ++(*this);
@@ -205,7 +206,7 @@ class list {
 
     link_type create_node(const T& x) {
         link_type p = get_node();
-        construct(&p->data, x);
+        construct(&p->data, x);  // 指针 值
         return p;
     }
 
@@ -221,7 +222,7 @@ class list {
     }
 
     public:
-
+    // constructor
     list() {
         empty_initialize();
     }
