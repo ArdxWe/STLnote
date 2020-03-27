@@ -246,3 +246,61 @@ interator insert(iterator positon, const T& x) {
     return tmp;
 }
 ```
+
+## `deque`
+
+和 `vector` 比较而言, `deque` 属于双向开口的连续线性空间, 可以在头尾两端进行插入和删除操作.
+
+`deque` 维护一段连续空间成为 `map` , `map` 中的每个元素指向另外一块较大的连续空间成为缓冲区, 缓冲区存放主体内容.
+
+```cpp
+templete <class T, class Alloc = alloc, size_t BufSiz = 0>
+class deque {
+    public:
+
+    typedef  T value_type;
+    typedef value_type* pointer;
+    ...
+
+    protected:
+
+    typedef pointer* map_pointer;
+    map_pointer map;  // 双重指针
+    size_type map_size;  // map 大小
+    ...
+}
+```
+
+迭代器:
+
+```cpp
+template <class T, class Ref, class Ptr, size_t BufSiz>
+struct __deque_iterator {
+    typedef __deque_iterator<T, T&, T*, BufSize> iterator;
+    typedef __deque_iterator<T, const T&, const T*, BufSiz> const_iterator;
+    static size_t buffer_size() {
+        return __deque_buf_size(BufSiz, sizeof(T));
+    }
+
+    typedef random_access_iterator_tag iterator_category;
+    typedef T value_type;
+    typedef Ptr Pointer;
+    typedef Ref reference;
+    typedef size_t size_type;
+    typedef prtdiff_t difference_type;
+    typedef T** map_pointer;
+    typedef __deque_iterator self;
+
+
+    T* cur;
+    T* first;
+    T* last;
+    map_pointer node;
+    ...
+}
+
+// 全局函数
+inline size_t __deque_buf_size(size_t n, size_t sz) {
+    return n != 0 ? n : (sz < 512 ? size_t(512 / sz) : size_t(1));
+}
+```
