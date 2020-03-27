@@ -228,3 +228,21 @@ class list {
     }
 }
 ```
+
+`push_back` 函数:
+
+```cpp
+void push_back(const T& x) {
+    insert(end(), x);  // 尾部迭代器 值
+}
+
+interator insert(iterator positon, const T& x) {
+    // 双向链表串起来
+    link_type tmp = create_node(x);
+    tmp->next = positon.node;
+    rmp->prev = position.node->prev;
+    (link_type(positon.node->prev))->next = tmp;
+    positon.node->prev = tmp;
+    return tmp;
+}
+```
