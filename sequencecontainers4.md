@@ -435,3 +435,56 @@ class deque {
     ...
 }
 ```
+
+`deque` 的构造
+
+```cpp
+// 两个空间配置器
+protected:
+
+typedef simple_alloc<value_type, Alloc> data_allocator;  // 配置元素
+typedef simple_alloc<pointer, Alloc> map_allocator;  // 配置指针
+// constructor
+deque(int n, const value_type& value): start(), finish(), map(0), map_size(0) {
+    fill_initialize(n, value);
+}
+
+template <class T, class Alloc, size_t BufSize>
+void deque<T, Alloc, BufSize>::fill_initialize(size_type n, const value_type& value) {
+    create_map_and_nodes(n);  // 分配内存
+    map_pointer cur;
+    __STL_TRY {
+        for (cur = start.node; cur < finish.node; cur++) {
+            uninitialized_fill(*cur, *cur + buffer_size(), value);  // 填充值
+        }
+        uninitialized_fill(finish.first, finish.cur, value);  // 最后一个填充到 cur 即可 create_map_and_nodes() 会更新
+    }
+    catch(...) {
+        ...
+    }
+}
+
+template <class T, class Alloc, size_t BufSize>
+void deque<T, Alloc, BufSize>::create_map_and_nodes(size_type num_elements) {
+    size_type num_nodes = num_elements / buffer_size() + 1;  // 整除会多分配一个 node
+    map_size = max(initial_map_size(), nums_node + 2);  // 8 和 指定 node + 2 的最大值
+    map = map_allocator::allocate(map_size);  // 分配 map 内存
+    // nstart 和 nfinish 都在中间
+    map_pointer nstart = map + (map_size - num_nodes) / 2;
+    map_pointer nfinish = nstart + nums_nodes - 1;
+    map_pointer cur;
+    __STL_TRY {
+        for (cur = nstart; cur <= nfinish; cur++) {
+            *cur = allocate_node();  // 分配 node 内存
+        }
+    }
+    catch(...) {
+        ...
+    }
+    // 设置 start 和 finish 两个迭代器
+    start.set_node(nstart);
+    finish.set_node(nfinish);
+    start.cur = start.first;
+    finish.cur = finish.first + nums_elements % buffer_size();
+}
+```
