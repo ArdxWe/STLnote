@@ -488,3 +488,64 @@ void deque<T, Alloc, BufSize>::create_map_and_nodes(size_type num_elements) {
     finish.cur = finish.first + nums_elements % buffer_size();
 }
 ```
+
+`push_back` 函数:
+
+```cpp
+void push_back(const value_type& t) {
+    if (finish.cur != finish.last - 1) {
+        // 缓冲区还有大于等于 2 个的位置
+        construct(finish.cur, t);
+        ++finish.cur;
+    }
+    else {
+        push_back_aux(t);
+    }
+}
+
+void push_back_aux(const value_type& t) {
+    value_type t_copy = t;
+    reverse_map_at_back();  // 符合某种条件会换一个 map
+    *(finish.node + 1) = allocate_node();  // 给后面的分配空间
+    ___STL_TRY {
+        construct(finish.cur, t_copy);  // 构造
+        finish.set_node(finish.node + 1);  // 更新 finish.node
+        finish.cur = finish.first;  // 更新 finish.cur
+    }
+    __STL_UNWIND(deallocate_node(*(finish.node + 1)));  // 释放空间
+}
+
+void reserve_map_at_back(size_type nodes_to_add = 1) {
+    if (nodes_to_add + 1 > map_size - (finish.node - map)) {  // 未用的 node 太少
+        reallocate_map(nodes_to_add, false);
+    }
+}
+
+template <class T, class Alloc, size_t BufSize>
+void deque<T, Alloc, BufSize>::reallocate_map(size_type nodes_to_add, bool add_at_front) {
+    size_type old_num_nodes = finish.node - start.node + 1;
+    size_type new_num_nodes = old_num_nodes + nodes_to_add;
+
+    map_pointer new_nstart;
+    if (map_size > 2 * new_num_nodes) {
+        new_nstart = map + (map_size - new_num_nodes) / 2 + (add_at_front ? nodes_to_add : 0);
+        if (new_nstart < start.node) {
+            copy(start.node, finish.node + 1, new_nstart);
+        }
+        else {
+            copy_backend(start.node, finish.node + 1, new_nstart + old_num_nodes);
+        }
+    }
+    else {
+        size_type new_map_size = map_size + max(map_size, nodes_to_add) + 2;
+        map_pointer new_map = map_allocator::allocate(new_map_size);
+        new_nstart = new_map + (new_map_size - new_num_nodes) / 2 + (add_at_front ? nodes_to_add : 0);
+        copy(start.node, finish.node + 1, new_nstart);
+        map_allocator::deallocate(map, map_size);
+        map = new_map;
+        map_size = new_map_size;
+    }
+    start.set_node(new_nstart);
+    finish.set_node(new_nstart + old_num_nodes - 1);
+}
+```
