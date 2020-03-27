@@ -304,3 +304,134 @@ inline size_t __deque_buf_size(size_t n, size_t sz) {
     return n != 0 ? n : (sz < 512 ? size_t(512 / sz) : size_t(1));
 }
 ```
+
+指针运算可能需要跳跃缓冲区
+
+```cpp
+// 更新 iterator 数据
+void set_node(map_pointer new_node) {
+    node = new_node;
+    first = *new_node;
+    last = first + difference_type(buffer_size());  // 末尾
+}
+
+// 重载运算符
+reference operator*() const {
+    return *cur;
+}
+
+pointer operator->() const {
+    return &(operator*());
+}
+
+difference_type operator-(const self& x) const {
+    return difference_type(buffer_size()) * (node - x.node - 1) + (cur - first) + (x.last - x.cur))   // 计算缓冲区距离
+}
+
+self& operator++() {
+    cur++;
+    if (cur == last) {  // 跳跃缓冲区
+        set_node(node+1);
+        cur = first;
+    }
+    return *this;
+}
+// i++
+self operator++(int) {
+    self tmp = *this;
+    ++*this;
+    return tmp;
+}
+
+self& operator--() {
+    if (cur == first) {  // 跳跃缓冲区
+        set_node(node-1);
+        cur = last;
+    }
+    cur--;  // 切换到前一个
+    return *this;
+}
+
+self operator--(int) {
+    self tmp = *this;
+    --*this;
+    return tmp;
+}
+
+// 随机存取
+self& operator+=(difference_type n) {
+    difference_type offset = n + (cur - first);  // 与当前迭代器 first 的距离
+    if (offset >==0 && offset < difference_type(buffer_size())) {
+        // 在当前缓冲区
+        cur += n;
+    }
+    else {  // 跳跃
+        difference_type node_offset = offset > 0 ? offset / difference_type(buffer_size()) : -difference_type((-offset - 1) / buffer_size()) - 1;  // node 的距离
+        set_node(node + node_offset);  // 跳到新的缓冲区
+        cur = first + (offset - node_offset * difference_type(buffer_size()));  // 设置新的当前的缓冲区元素指针
+    }
+    return *this;
+}
+
+self operator+(difference_type n) const {
+    self tmp = *this;
+    return tmp += n;
+}
+
+self& operator-=(difference_type n) const {
+    return *this -= -n;
+}
+
+self operator-(difference_type n) const {
+    self tmp = *this;
+    return tmp -= n;
+}
+
+reference operator[](difference_type n) const {
+    return *(*this + n)
+}
+
+bool operator==(const self& x) const {
+    // 两个迭代器相等判断 当前指针
+    return cur == x.cur;
+}
+
+bool operator!=(const self& x) const {
+    return !(*this == x);
+}
+
+bool operator<(const self& x) const {
+    return (node == x.node) ? (cur < x.cur) : (node < x.node);
+}
+```
+
+`deque` 的数据结构: `deque` 维护一个 `map` 指针, 还要维护两个迭代器, 分别指向第一个缓冲区的第一个元素和最后一个缓冲区的最后一个元素. 看代码:
+
+```cpp
+template <class T, class Alloc = alloc, size_t BufSiz = 0>
+class deque {
+    public:
+
+    typedef T value_type;
+    typedef value_type* pointer;
+    typedef size_t size_type;
+    typedef __deque_iterator<T, T&, T*, BufSiz> iterator;
+
+    protected:
+
+    typedef pointer* map_pointer;
+
+    iterator start;
+    iterator finish;
+    map_pointer map;
+    size_type map_size;
+
+    // 这些操作很容易完成
+    public:
+
+    iterator begin() {return start;}
+    iterator end() {return finish;}
+    bool empty() const {return finish == start;}
+    ...
+}
+```
