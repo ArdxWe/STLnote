@@ -549,3 +549,126 @@ void deque<T, Alloc, BufSize>::reallocate_map(size_type nodes_to_add, bool add_a
     finish.set_node(new_nstart + old_num_nodes - 1);
 }
 ```
+
+## `stack`
+
+`SGI` 缺省使用 `deque` 作为 `stack` 的底部结构, 这种具有 "修改某物接口, 形成另一种风貌" 的性质称为配接器, 因此将 `SGI stack` 归类为 `container adapter` .
+
+```cpp
+// 基本完全使用 deque
+template <class T, class Sequence = deque<T>>
+class stack {
+    friend bool operator==__STL_NULL_TMPL_ARGS(const stack&, const stack&);
+    friend bool operator<__STL_NULL_TMPL_ARGS(const stack&, const stack&);
+    public:
+
+    typedef typename Sequence::value_type value_type;
+    typedef typename Sequence::size_type size_type;
+    typedef typename Sequence::reference reference;
+    typedef typename Sequence::const_reference const_reference;
+
+    protected:
+    Sequence c;
+
+    public:
+
+    bool empty() const {
+        return c.empty();
+    }
+
+    size_type size() const {
+        return c.size();
+    }
+
+    reference top() {
+        return c.back();
+    }
+
+    const_reference top() const {
+        return c.back();
+    }
+
+    void push(const value_type& x) {
+        c.push_back(x);
+    }
+
+    void pop() {
+        c.pop_back();
+    }
+};
+
+template <class T, clas Sequence>
+bool operator==(const stack<T, Sequence>& x, const stack<T, Sequence>& y) {
+    return x.c == y.c;
+}
+
+template <class T, clas Sequence>
+bool operator<(const stack<T, Sequence>& x, const stack<T, Sequence>& y) {
+    return x.c < y.c;
+}
+```
+
+## `queue`
+
+同样以 `deque` 作为底部结构:
+
+```cpp
+template <class T, class Sequence = deque<T>>
+class queue {
+    friend bool operator==__STL_NULL_TMPL_ARGS(const queue&, const queue&);
+    friend bool operator<__STL_NULL_TMPL_ARGS(const queue&, const queue&);
+    public:
+
+    typedef typename Sequence::value_type value_type;
+    typedef typename Sequence::size_type size_type;
+    typedef typename Sequence::reference reference;
+    typedef typename Sequence::const_reference const_reference;
+
+    protected:
+    Sequence c;
+
+    public:
+
+    bool empty() const {
+        return c.empty();
+    }
+
+    size_type size() const {
+        return c.size();
+    }
+
+    reference front() {
+        return c.front();
+    }
+
+    const_reference front() const {
+        return c.front();
+    }
+
+    reference back() {
+        return c.back();
+    }
+
+    const_reference back() const {
+        return c.back();
+    }
+
+    void push(const value_type& x) {
+        c.push_back(x);
+    }
+
+    void pop() {
+        c.pop_front();
+    }
+};
+
+template <class T, clas Sequence>
+bool operator==(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
+    return x.c == y.c;
+}
+
+template <class T, clas Sequence>
+bool operator<(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
+    return x.c < y.c;
+}
+```
