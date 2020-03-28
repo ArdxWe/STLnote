@@ -672,3 +672,31 @@ bool operator<(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
     return x.c < y.c;
 }
 ```
+
+## `heap`
+
+`heap` 本身并不属于 `STL` 容器组件, 它是 下一节 `priority queue` 的助手.
+
+```cpp
+// push
+template <class RandomAccessIterator>
+inline void push_heap(RandomAccessIterator first, RandomAccessIterator last) {
+    __push_heap_aux(first, last, distance_type(first), value_type(first));
+}
+
+template <class RandomAccessIterator first, RandomAccesIterator last, class Distance, class T>
+inline void __push_heap_aux(RandomAccessIterator first, RandomAccessIterator last, Distance*, T*) {
+    __push_heap(first, Distance((last - first) -  1), Distance(0), T(*(last - 1)));
+}
+
+template <class RandomAccessIterator, class Distance, class T>
+void __push_heap(RandomAccessIterator first, Distance holeIndex, Distance topIndex, T value) {
+    Distance parent = (holeIndex - 1) / 2;
+    while (holeIndex > topIndex && *(first + parent) < value) {
+        *(first + holeIndex) = *(first + parent);
+        holeIndex = parent;
+        parent = (holeIndex - 1) / 2;
+    }
+    *(first + holeIndex) = value;
+}
+```
