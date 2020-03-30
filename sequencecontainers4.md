@@ -775,3 +775,67 @@ void __make_heap(RandomAccessIterator first, RandomAccessIterator last, Distance
     }
 }
 ```
+
+## `priority_queue`
+
+`priority_queue` 完全以底部 `vector` 为容器, 加上 `heap` 的处理规则, 所以视为 `adapter` . 看源代码:
+
+```cpp
+template <class T, class Sequence = Vector<T>, class Compare = less<typename Sequence::value_type>>
+class priority_queue {
+    public:
+
+    typedef typename Sequence::value_type value_type;
+    typedef typename Sequence::size_type size_type;
+    typedef typename Sequence::reference reference;
+    typedef typename Sequence::const_reference const_reference;
+
+    protected:
+
+    Sequence c;
+    Compare comp;
+
+    public:
+
+    priority_queue() : c() {}
+    explicit priority_queue(const compare& x) : c(), comp(x) {}
+
+    template <class InputIterator>
+    priority_queue(InputIterator first, InputIterator last, const compare& x) : c(first, last), comp(x) {
+        make_heap(c.begin(), c.end(), comp);
+    }
+
+    template <class InputIterator>
+    priority_queue(InputIterator first, InputIterator last) : c(first, last) {
+        make_heap(c.begin(), c.end(), comp);
+    }
+
+    bool empty() const {
+        return c.empty();
+    }
+
+    size_type size() const {
+        return c.size();
+    }
+
+    const_reference top() const {
+        return c.front();
+    }
+
+    void push(const value_type& x) {
+        __STL_TRY {
+            c.push_back(x);
+            push_heap(c.begin(), c.end(), comp);
+        }
+        __STL_UNWIND(c.clear());
+    }
+
+    void pop() {
+        __STL_TRY {
+            pop_heap(c.begin(), c.end(), comp);
+            c.pop_back();
+        }
+        __STL_UNWIND(c.clear());
+    }
+};
+```
