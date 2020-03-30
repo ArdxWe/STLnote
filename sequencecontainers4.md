@@ -680,18 +680,19 @@ bool operator<(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
 ```cpp
 // push
 template <class RandomAccessIterator>
-inline void push_heap(RandomAccessIterator first, RandomAccessIterator last) {
-    __push_heap_aux(first, last, distance_type(first), value_type(first));
+inline void push_heap(RandomAccessIterator first, RandomAccessIterator last) {  // 头尾迭代器 尾部是所指数据末尾的下一个
+    __push_heap_aux(first, last, distance_type(first), value_type(first));  // 头迭代器 尾迭代器 距离类型 数值类型
 }
 
 template <class RandomAccessIterator, class Distance, class T>
 inline void __push_heap_aux(RandomAccessIterator first, RandomAccessIterator last, Distance*, T*) {
-    __push_heap(first, Distance((last - first) -  1), Distance(0), T(*(last - 1)));
+    __push_heap(first, Distance((last - first) -  1), Distance(0), T(*(last - 1)));  // 头迭代器 尾部索引 起始索引 尾部数值 (这里的索引是相对于头部迭代器)
 }
 
+// 实际 push 函数 从当前节点一直往上 遇到小的下移 遇到大的节点 将当前节点值填入其对应的 子节点 简单的 heap push 算法.
 template <class RandomAccessIterator, class Distance, class T>
 void __push_heap(RandomAccessIterator first, Distance holeIndex, Distance topIndex, T value) {
-    Distance parent = (holeIndex - 1) / 2;
+    Distance parent = (holeIndex - 1) / 2;  // 尾部的父节点
     while (holeIndex > topIndex && *(first + parent) < value) {  // 父节点小于新值
         *(first + holeIndex) = *(first + parent);  // 下移
         holeIndex = parent;  // 更新目标
@@ -704,19 +705,19 @@ void __push_heap(RandomAccessIterator first, Distance holeIndex, Distance topInd
 ```cpp
 // pop
 template <class RandomAccessIterator>
-inline void pop_heap(RandomAccessIterator first, RandomAccessIterator last) {
-    __push_heap_aux(first, last, value_type(first));
+inline void pop_heap(RandomAccessIterator first, RandomAccessIterator last) {  // 头部迭代器 尾部迭代器 尾部指向为最后一个元素的下个位置
+    __push_heap_aux(first, last, value_type(first));  // 头 尾 值类型
 }
 
 template <class RandomAccessIterator, class T>
 inline void __pop_heap_aux(RandomAccessIterator first, RandomAccessIterator last,  T*) {
-    __pop_heap(first, last - 1, last - 1, T(*(last - 1)), distance_type(first));
+    __pop_heap(first, last - 1, last - 1, T(*(last - 1)), distance_type(first));  // 头 含元素的尾部 存 pop 的迭代器 尾部值
 }
 
 template <class RandomAccessIterator, class Distance, class T>
-void __pop_heap(RandomAccessIterator first, RandomAccessIterator last, RandomAccessIterator result, T vlaue, Distance*) {
-    *result = *first;
-    __adjust_heap(first, Distance(0), Distance(last - first), value);
+void __pop_heap(RandomAccessIterator first, RandomAccessIterator last, RandomAccessIterator result, T value, Distance*) {
+    *result = *first;  // 将 pop 存入末尾 尾部本来的值存于 value 中 所以不用担心覆盖
+    __adjust_heap(first, Distance(0), Distance(last - first), value);  // 头迭代器 头索引 尾索引 要存入的值
 }
 
 template <class RandomAccessIterator, class Distance, class T>
@@ -725,16 +726,52 @@ void __adjust_heap(RandomAccessIterator first, Distance holeIndex, Distance len,
     Distance secondChild = 2 * holeIndex + 2;
     while (secondChild < len) {
         if (*(first + secondChild) < *(first + (secondChild - 1))) {
-            secondChild--;
+            secondChild--;  // 取左右子树的最大值
         }
-        *(first + holeIndex) = *(first + secondChild);
-        holeIndex = secondIndex;
+        *(first + holeIndex) = *(first + secondChild);  // 上移
+        holeIndex = secondIndex;  // 往下移动
         secondChild = 2 * (secondChild + 1);
     }
-    if (secondChild == len) {
-        *(first + holeIndex) = *(first + (secondeChild - 1));
+    if (secondChild == len) {  // 没有右子节点的情况
+        *(first + holeIndex) = *(first + (secondChild - 1));  // 一定是加到叶子节点所以不用判断 直接上移
         holeIndex = secondChild - 1;
     }
+    // value 尚未插入
+    *(first + holeIndex) = value;  // 我觉得应该加这一句
     ...
+}
+```
+
+```cpp
+// sort
+template <class RandomAccessIterator>
+void sort_heap(RandomAccessIterator first, RandomAccessIterator last) {
+    while (last - first > 1) {
+        pop_heap(first, last--);  // 一直 pop 即可
+    }
+}
+```
+
+```cpp
+// make 将一组数据排列为一段 heap
+template <class RandomAccessIterator>
+inline void make_heap(RandomAccessIterator first, RandomAccessIterator last) {
+    __make_heap(first, last, value_type(first), distance_type(first));
+}
+
+template <class RandomAccessIterator, class T, class Distance>
+void __make_heap(RandomAccessIterator first, RandomAccessIterator last, Distance*, T*) {
+    if (last - first < 2) {  // 0 1 不用做什么
+        return;
+    }
+    Distance len = last - first;
+    Distance parent = (len - 2) / 2;
+    while (true) {
+        __adjust_heap(first, parent, len, T(*(first + parent)));  // 从最后一个节点的父节点开始一直调整
+        if (parent == 0) {
+            return;
+        }
+        parent--;  // 往头节点方向
+    }
 }
 ```
