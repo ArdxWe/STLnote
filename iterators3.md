@@ -424,4 +424,4 @@ template <class Item>
 struct ListIter : public std::iterator<std::forward_iterator_tag, Item> {...}
 ```
 
-`traits` 技法利用内嵌型别和编译器的参数推导, 增强了 `C++` 在参数推导方面的能力, 大量用于 'STL` 的实现.
+`traits` 技法利用内嵌型别和编译器的参数推导, 增强了 `C++` 在参数推导方面的能力, 大量用于 `STL` 的实现.
