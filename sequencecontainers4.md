@@ -784,7 +784,7 @@ void __make_heap(RandomAccessIterator first, RandomAccessIterator last, Distance
 template <class T, class Sequence = Vector<T>, class Compare = less<typename Sequence::value_type>>
 class priority_queue {
     public:
-
+    // traits 型别
     typedef typename Sequence::value_type value_type;
     typedef typename Sequence::size_type size_type;
     typedef typename Sequence::reference reference;
@@ -792,24 +792,24 @@ class priority_queue {
 
     protected:
 
-    Sequence c;
-    Compare comp;
+    Sequence c;  // 底层容器
+    Compare comp;  // 比较标准
 
     public:
 
     priority_queue() : c() {}
-    explicit priority_queue(const compare& x) : c(), comp(x) {}
+    explicit priority_queue(const compare& x) : c(), comp(x) {}  // explicit 可以理解为禁止隐式复制
 
     template <class InputIterator>
     priority_queue(InputIterator first, InputIterator last, const compare& x) : c(first, last), comp(x) {
-        make_heap(c.begin(), c.end(), comp);
+        make_heap(c.begin(), c.end(), comp);  // 构建 heap
     }
 
     template <class InputIterator>
     priority_queue(InputIterator first, InputIterator last) : c(first, last) {
-        make_heap(c.begin(), c.end(), comp);
+        make_heap(c.begin(), c.end(), comp);  // 默认比较标准
     }
-
+    // 相应操作转为底层容器操作
     bool empty() const {
         return c.empty();
     }
@@ -818,22 +818,22 @@ class priority_queue {
         return c.size();
     }
 
-    const_reference top() const {
+    const_reference top() const {  // 常量引用
         return c.front();
     }
 
     void push(const value_type& x) {
         __STL_TRY {
-            c.push_back(x);
-            push_heap(c.begin(), c.end(), comp);
+            c.push_back(x);  // vector push
+            push_heap(c.begin(), c.end(), comp);  // 调整堆
         }
         __STL_UNWIND(c.clear());
     }
 
     void pop() {
         __STL_TRY {
-            pop_heap(c.begin(), c.end(), comp);
-            c.pop_back();
+            pop_heap(c.begin(), c.end(), comp);  // heap pop 维护堆
+            c.pop_back();  // 末尾为目标值
         }
         __STL_UNWIND(c.clear());
     }
@@ -856,13 +856,13 @@ struct __slist_node : public __slist_node_base {  // 继承
     T data;
 };
 
-inline __slist_node_base* __slist_make_link(__slist_node_base* prev_node, __slist_node_base* new_node) {
+inline __slist_node_base* __slist_make_link(__slist_node_base* prev_node, __slist_node_base* new_node) {  // prev 之后插入 new
     new_node->next = prev_node->next;
     prev_node->next = new_node;
     return new_node;
 }
 
-inline size_t __slist_size(__slist_node_base* node) {
+inline size_t __slist_size(__slist_node_base* node) {  // 单链表长度 直接遍历
     size_t result = 0;
     for (; node!=0; node = node->next) {
         result++;
@@ -877,14 +877,14 @@ inline size_t __slist_size(__slist_node_base* node) {
 struct __slist_iterator_base {
     typedef size_t size_type;
     typedef ptrdiff_t difference_type;
-    typedef forward_iterator_tag iterator_category;
+    typedef forward_iterator_tag iterator_category;  // 迭代器单向
 
-    __slist_node_base* node;
+    __slist_node_base* node;  // 节点的父类指针
 
     __slist_iterator_base(__slist_iterator_base* x) : node(x) {}
 
     void incr() {node = node->next;}
-
+    // 重载 == 和 != 根据类里面的指针本身是否相等
     bool operator==(const __slist_iterator_base& x) const {
         return node == x.node;
     }
@@ -895,22 +895,24 @@ struct __slist_iterator_base {
 };
 
 template <class T, class Ref, class Ptr>
-struct __slist_iterator : public : __slist_iterator_base {
+struct __slist_iterator : public : __slist_iterator_base {  // 继承
     typedef __slist_iterator<T, T&, T*> iterator;
     typedef __slist_iterator<T, const T&, const T*> const_iterator;
     typedef __slist_iterator<T, Ref, Ptr> self;
 
+    // traits 型别
     typedef T value_type;
     typedef Ptr pointer;
     typedef Ref reference;
     typedef __slist_node<T> list_node;
 
+    // 实际通过继承的类来构造
     __slist_iterator(list_node* x) : __slist_iterator_base(x) {}
     __slist_iterator() : __slist_iterator_base(0) {}
     __slist_iterator(const iterator& x) : __slist_iterator_base(x.node) {}
 
     reference operator*() const {
-        return ((list_node*) node->data);
+        return ((list_node*) node->data);  // 子类型才有 data 属性 所以需要强制转换
     }
 
     Pointer operator->() const {
@@ -935,7 +937,7 @@ struct __slist_iterator : public : __slist_iterator_base {
 template <class T, class Alloc = alloc>
 class slist {
     pubilc:
-
+    // traits 型别
     typedef T value_type;
     typedef value_type* pointer;
     typedef const value_type* const_pointer;
@@ -955,9 +957,9 @@ class slist {
     typedef simple_alloc<list_node, Alloc> list_node_allocator;
 
     static list_node* create_node(const value_type& x) {
-        list_node* node = list_node_allocator::allocate();
+        list_node* node = list_node_allocator::allocate();  // 分配空间
         __STL_TRY_ {
-            construct(&node->data, x);
+            construct(&node->data, x);  // 填充值
             node->next = 0;
         }
         __STL_UNWIND(list_node_allocator::deallocate(node));
@@ -971,7 +973,7 @@ class slist {
 
     private:
 
-    list_node_base head;
+    list_node_base head;  // 数据成员 节点 head
 
     public:
 
@@ -1017,7 +1019,7 @@ class slist {
         __slist_make_link(&head, create_node(x));
     }
 
-    void pop_front() {
+    void pop_front() {  // head 往后指 销毁
         list_node* node = (list_node*) head.next;
         head.next = node->next;
         destroy_node(node);
