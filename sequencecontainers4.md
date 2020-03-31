@@ -936,7 +936,7 @@ struct __slist_iterator : public : __slist_iterator_base {  // 继承
 ```cpp
 template <class T, class Alloc = alloc>
 class slist {
-    pubilc:
+    public:
     // traits 型别
     typedef T value_type;
     typedef value_type* pointer;
