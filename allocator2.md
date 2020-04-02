@@ -180,7 +180,7 @@ class __malloc_alloc_template {
 
     // 再分配 p new_sz bytes
     static void* reallocate(void* p, size_t /* old_sz */, size_t new_sz) {
-        void* result = realloc(p, new_sz);  // 直接realloc
+        void* result = realloc(p, new_sz);  // 直接 realloc
         // out of memory
         if (0 == result) {
             result = oom_realloc(p, new_sz);
@@ -189,9 +189,9 @@ class __malloc_alloc_template {
     }
 
     // 指定 out of memory handler
-    static void (*set_malloc_handler(void (*f)()) ) () {  // 这一行的语法我并没有看懂
+    static void (*set_malloc_handler(void (*f)()) ) () {  // 参数和返回值都是函数指针
         void (*old)() = __malloc_alloc_oom_handler;
-        __malloc_alloc_oom_handler = f;
+        __malloc_alloc_oom_handler = f;  // 更新
         return (old);  // 返回之前的 out of memory handler
     }
 };
@@ -203,7 +203,7 @@ void (* __malloc_alloc_template<inst>::__malloc_alloc_oom_handler) () = 0;
 // out of memory malloc
 template <int inst>
 void* __malloc_alloc_template<inst>::oom_malloc(size_t n) {
-    void (*my_alloc_handler) ();
+    void (*my_malloc_handler) ();
     void *result;
 
     for (;;) {  // 一直尝试 释放 配置...
@@ -211,7 +211,7 @@ void* __malloc_alloc_template<inst>::oom_malloc(size_t n) {
         if (0 == my_malloc_handler) {
             __THROW_BAD_ALLOC;  // 未指定处理例程 直接抛异常
         }
-        (*my_malloc_handler)();  // 处理例程
+        (*my_malloc_handler)();  // out of memory 处理例程
         result = malloc(n);  // 配置内存
         if (result) {
             return result;
@@ -230,7 +230,7 @@ void* __malloc_alloc_template<inst>::oom_realloc(void* p, size_t n) {
         if (0 == my_malloc_handler) {
             __THROW_BAD_ALLOC;  // 未指定处理例程 直接抛异常
         }
-        (*my_malloc_handler)();  // 处理例程
+        (*my_malloc_handler)();  // out of memory 处理例程
         result = realloc(p, n);  // 配置内存
         if (result) {
             return result;
@@ -244,14 +244,14 @@ typedef __malloc_alloc_template<0> malloc_alloc;
 
 `__malloc_alloc_oom_handler` 是内存不足处理例程, 设定此函数是客端责任.
 
-### 第二级配置器 `__default_alloc_template`
+## 第二级配置器 `__default_alloc_template`
 
 为了避免小额区块造成的内存碎片和配置时的额外负担, 采取以下策略
 
 * 区块大于 `128 bytes` , 转给第一级配置器处理
 * 小于 `128 bytes` , 使用 `memory pool`
 
-第二级配置器会将任何小于 `128 bytes` 的内存需求上调到 `8` 的倍数, 例如 `30 bytes->32 bytes`, 维护 `16` 个 `free-lists` , 分别管理 `8 bytes->16 bytes->...->128 bytes` 的区块
+第二级配置器会将任何小于 `128 bytes` 的内存需求上调到 `8` 的倍数, 例如 `30 bytes->32 bytes`, 维护 `16` 个 `free-lists` , 分别管理 `8 bytes 16 bytes ...128 bytes` 的区块.
 
 ```cpp
 // free-lists
@@ -261,7 +261,7 @@ union obj {
 }
 ```
 
-可以这样来理解: `obj` 本身的地址可以视为当前区块的指针, `obj->free_list_link` 即 `obj` 内部存储的内容是下个 `obj` , 构成链表, 如下图.
+可以这样来理解: `obj->client_data` 可以视为当前区块的指针, 类型为 `char*` ,  `obj->free_list_link` 存储的内容是下个 `obj` 的地址, 构成链表, 如下图.
 
 ![free-lists](./image/1.jpg)
 
@@ -269,7 +269,7 @@ union obj {
 
 ```cpp
 enum {__ALIGN = 8};  // bytes 上调间距
-enum {__MAX_BTYES = 128}  // 区块上限
+enum {__MAX_BTYES = 128};  // 区块上限
 enum {__NFREELISTS = __MAX_BYTES / __ALIGN};  // free-lists 个数
 
 // 第二级配置器
@@ -331,7 +331,7 @@ __default_alloc_template<threads, inst>::obj* volatile __default_alloc_template<
 
 ```
 
-#### 空间配置 `allocate()`
+### 空间配置 `allocate()`
 
 ```cpp
 static void* allocate(size_t n) {
@@ -343,7 +343,7 @@ static void* allocate(size_t n) {
         return (malloc_alloc::allocate(n));
     }
 
-    // 寻找 free-list 指定元素
+    // 寻找 free-list 指定元素位置的指针
     my_free_list = free_list + FREELIST_INDEX(n);  // 指针运算
     result = *my_free_list;  // free-list 对应元素 类型为 obj*
     if (result == 0) {
@@ -353,8 +353,8 @@ static void* allocate(size_t n) {
     }
 
     // 删除 free-list 对应位置头节点
-    *my_free_list = result->free_list_link;  // 指向下一个区块
-    return result;
+    *my_free_list = result->free_list_link;  // 指向下一个区块 维护 free-list
+    return result;  // 选中区块的指针
 };
 ```
 
@@ -366,7 +366,7 @@ static void* allocate(size_t n) {
 
 ```cpp
 static void deallocate(void* p, size_t n) {
-    obj* q = obj* p;
+    obj* q = (obj*) p;
     obj* volatile* my_free_list;
 
     // 大于 128 bytes 使用第一级配置器
@@ -387,7 +387,7 @@ static void deallocate(void* p, size_t n) {
 
 原理与空间配置类似.
 
-#### 重新填充 `refill()`
+### 重新填充 `refill()`
 
 当空间配置 `allocate()` 发现 `free_list` 已经空了就使用 `refill()` , 新的内存来自 `chunk_alloc()` , 默认获得 `20` 个区块, 内存空间不足可能会小于 `20` , 看代码:
 
@@ -417,7 +417,7 @@ void* __default_alloc_template<threads, inst>::refill(size_t n) {
 
     for (i = 1; ; i++) {
         currnet_obj = next_obj;
-        next_obj = (obj*) ((char*)next_obj+n);
+        next_obj = (obj*) ((char*)next_obj + n);
         if (nobjs - 1 == i) {  // 最后一个
             current_obj->free_list_link = 0;
             break;
@@ -436,7 +436,7 @@ void* __default_alloc_template<threads, inst>::refill(size_t n) {
 // 用于给 free_list 提供内存
 // size 为 8 的倍数
 template <bool threads, int inst>
-char* __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs) {
+char* __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs) {  // 这里 nobjs 为引用传递 可能会更改
     char* result;
     size_t total_bytes = size * nobjs;
     size_t bytes_left = end_free - start_free;  // 内存池剩余空间
@@ -458,7 +458,7 @@ char* __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nob
 
         // 尝试将剩余内存加入 free_list 争取索引最大
         // 例如 size = 24, memory_left = 23, 此时会把这 23 个字节加入到 free_list[1]
-        if (bytes_left > 0) {  // memory pool 还有内存
+        if (bytes_left > 0) {  // memory pool 还有内存 移入 free-list
             obj* volatile* my_free_list = free_list + FREELIST_INDEX(bytes_left);  // 得到合适索引
             ((obj*)start_free) -> free_list_link = *my_free_list;  // 头插法插入
             *my_free_list = (obj*) start_free;  // 更新头节点
@@ -491,7 +491,7 @@ char* __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nob
 }
 ```
 
-### 内存基本处理工具
+## 内存基本处理工具
 
 `STL` 定义了五个作用于未初始化空间的全局函数
 
