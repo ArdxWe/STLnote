@@ -2,18 +2,18 @@
 
 ## SGI空间适配器 std::alloc
 
-一般我们所习惯的C++内存配置和释放操作如下
+我们所习惯的 `C++` 内存配置和释放操作如下
 
 ```C++
 class Foo { ... };
-Foo *pf = new Foo;
-delete pf;
+Foo *pf = new Foo;  // 配置内存 构造对象
+delete pf;  // 析构对象 释放内存
 ```
 
 其中new包含两个阶段
 
 * 调用 `::operator new` 配置内存
-* 调用 `Foo::Foo()` 构造对象内容
+* 调用 `Foo::Foo()` 即默认构造函数构造对象内容
 
 delete包含类似两个阶段
 
@@ -22,17 +22,17 @@ delete包含类似两个阶段
 
 STL allocator将两个阶段的操作区分
 
-* 内存配置 `alloc::allocate()`
-* 内存释放 `alloc::deallocate()`
-* 对象构造 `::construct()`
-* 对象析构 `::destroy()`
+* 内存配置: `alloc::allocate()`
+* 内存释放: `alloc::deallocate()`
+* 对象构造: `::construct()`
+* 对象析构: `::destroy()`
 
 ## 对象构造
 
 ```cpp
 template <class T1, class T2>
 inline void construct(T1* p, const T2& value) {
-    new (p) T1(value);  // placement new
+    new (p) T1(value);  // placement new 在已经分配好内存的位置构建对象
 }
 ```
 
@@ -55,27 +55,27 @@ inline void destroy(T* pointer) {
 // 接受两个迭代器, 找出元素数值型别, 利用 __type_traits<> 调用不同函数
 template <class ForwardIterator>
 inline void destroy(ForwardIterator first, ForwardIterator last) {
-    __destroy(first, last, value_type(first));
+    __destroy(first, last, value_type(first));  // value type 实现原理见下章
 }
 
 // 判断 value_type 是否有 trivial destructor 即无析构函数
 template <class ForwardIterator, class T>
 inline void __destroy(ForwardIterator first, ForwardIterator last, T*) {
-    typedef typename __type_traits<T>::has_trivial_destructor trivial_destructor;
-    __destroy_aux(first, last, trivial_destructor());
+    typedef typename __type_traits<T>::has_trivial_destructor trivial_destructor;  // 具体原理见下章
+    __destroy_aux(first, last, trivial_destructor());  // 创建一个临时对象
 }
 
 // non-trivial destructor
 template <class ForwardIterator>
 inline void __destroy_aux(ForwardIterator first, ForwardIterator last, __false_type) {
-    for( ; first < last; ++first) {
-        destroy(&*first);  // 调用 first version 参数为迭代器所指对象的地址
+    for( ; first < last; ++first) {  // 前闭后开区间
+        destroy(&*first);  // 调用 first version 参数为迭代器所指对象的地址 用到了迭代器的操作符重载
     }
 }
 
 // trivial destructor
 template <class ForwardIterator>
-inline void __destroy_aux(ForwardIterator first, ForwardIterator last, __true_type) {}  // do nothing
+inline void __destroy_aux(ForwardIterator first, ForwardIterator last, __true_type) {}  // do nothing 无需析构
 
 // second version 针对迭代器为 char* 和 wchar_t* 的特化版
 inline void destroy(char*, char*) {}  // do nothing
@@ -83,7 +83,7 @@ inline void destroy(wchar_t*, wchar_t*) {} // do nothing
 
 ```
 
-第二版本, 接受 `first` 和 `last` 两个迭代器, 将 `[first, last)` 范围内所有对象析构. 利用 `value_type()` 得到迭代器所指对象的类型, 然后利用 `_type_traits<T>`判断该类别析构函数是否无关痛痒, 是则不做任何事, 否则遍历整个范围一次调用第一个版本的 `destroy()`  
+第二版本, 接受 `first` 和 `last` 两个迭代器, 将 `[first, last)` 范围内所有对象析构. 利用 `value_type()` 得到迭代器所指对象的类型, 然后利用 `_type_traits<T>` 判断该类别析构函数是否无关痛痒, 是则不做任何事, 否则遍历整个范围一次调用第一个版本的 `destroy()`  
 `value_type()` 和 `__type_traits_()` 具体实现见下章.
 
 ## 内存配置与释放
@@ -137,25 +137,30 @@ class simple_alloc {
 
 ```cpp
 // 实际运用方式
-template <class T, class Alloc = alloc>  // 缺省使用alloc
+template <class T, class Alloc = alloc>  // 缺省使用 alloc
 class vector {
     typedef simple_alloc<T, Alloc> data_allocator;
 
-    data_allocator::allocate(n);
-
+    void deallocate() {
+        if (...) {
+            data_allocator::deallocate(start, end_of_storage - start);
+        }
+    }
+    ...
 };
 ```
 
-### 第一级配置器 `__malloc_alloc_template`
+## 第一级配置器 `__malloc_alloc_template`
 
 ```cpp
+// > 128 bytes
 template <int inst>
 class __malloc_alloc_template {
     private:
-    // 处理内存不足
+    // out of memory
     static void* oom_malloc(size_t);
     static void* oom_realloc(void*, size_t);
-    static void (*__malloc_alloc_oom_handler) ();
+    static void (*__malloc_alloc_oom_handler) ();  // 函数指针
 
     public:
     // 分配 n bytes
