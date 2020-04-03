@@ -376,7 +376,7 @@ inline void advance(InputIterator& i, Distance n) {
 ```cpp
 template <class I>
 struct iterator_traits {
-    typedef I::iterator_category iterator_category;
+    typedef I::iterator_category iterator_category;  // 获得迭代器定义的 iterator_category
 }
 
 // 偏特化版 原生指针
