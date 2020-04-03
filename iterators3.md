@@ -4,13 +4,11 @@
 
 `STL` 中心思想: 将数据容器和算法分开, 彼此独立设计, 然后用胶着剂撮合在一起.
 
-一个简单的例子.
-
 ```cpp
 // find() 接受两个迭代器和一个目标
 template <class InputIterator, class T>
 InputIterator find(InputIterator first, InputIterator last, const T& value) {
-    while (first != last && *first != value){
+    while (first != last && *first != value){  // 需要操作符重载
         first++;
     }
     return first;
@@ -24,7 +22,7 @@ int ia[arraySize] = {0, 1, 2, 3, 4, 5, 6 };
 
 vector<int> ivect(ia, ia+arraySize);
 list<int> ilist(ia, ia+arraySize);
-deque<int> ideque(is, ia+arraySize);
+deque<int> ideque(ia, ia+arraySize);
 
 // 不同容器对应不同迭代器
 vector<int>::iterator it1 = find(ivect.begin(), ivect.end(), 4);
@@ -41,7 +39,7 @@ vector<int>::iterator it3 = find(ideque.begin(), ideque.end(), 4);
 现在我们为 `list` 设计一个迭代器, 核心思想是包装指针.
 
 ```cpp
-// file: 3my_list.h
+// file: 3mylist.h
 template <typename T>
 class List {
     // 包装函数
@@ -63,7 +61,7 @@ class ListItem {
     public:
 
     T value() const {
-        return value;
+        return _value;
     }
 
     ListItem* next() const {
@@ -86,9 +84,9 @@ class ListItem {
 
 template <class Item>
 struct ListIter {
-    Item* ptr;
+    Item* ptr;  // 指针
 
-    ListIter (Item* p = 0) : ptr(p) {};
+    ListIter (Item* p = 0) : ptr(p) {};  // 构造函数 含默认参数
 
     Item& operator*() const {
         return *ptr;
@@ -146,8 +144,6 @@ bool operator!=(const ListItem<T>& item, T n) {
     return item.value() != n;
 }
 ```
-
-看到这里细心的读者可能会想: `ListItem<T>` 也没有 `value()` 函数呀, 这里主要介绍思想, 你只需要明白这些函数的意义就好 `:)`
 
 显然, 为了设计迭代器, 我们暴露了太多 `List` 的实现细节. 也就是说, 迭代器的设计不可避免地需要了解相应的容器或者说数据. 所以每一个 `STL` 容器都有它专属的迭代器.
 
@@ -234,7 +230,7 @@ struct iterator_traits {
 
 如上所述, 会为 `pointer` 和 `pointer-to-const` 添加特化版本.
 
-### `difference_type`
+## `difference_type`
 
 表示两个迭代器之间的距离. 例如 `STL` 中的 `count()` .
 
@@ -270,7 +266,7 @@ struct iterator_traits<const T*> {
 }
 ```
 
-### `reference type`
+## `reference type`
 
 迭代器分为两种:
 
@@ -280,7 +276,7 @@ struct iterator_traits<const T*> {
 
 迭代器 `p` `value type` 为 `T` , 当为 `mutable iterators` 时, `*p` 应为 `T&` , 当为 `constant iterators` 时, `*p` 应为 `const T&`. 显然都应该为左值! 实现见下节.
 
-### `pointer type`
+## `pointer type`
 
 显然指的是 迭代器所指之物的指针.看代码, 包含上一章节的 `reference type`.
 
@@ -309,7 +305,7 @@ struct iterator_traits<const T*> {
 };
 ```
 
-### `iterator_category`
+## `iterator_category`
 
 迭代器被分为 `5` 类:
 
@@ -345,8 +341,8 @@ inline void __advance(InputIterator& i, Distance n, input_iterator_tag) {
 
 // 因为是继承 所以 当传递一个 forwardIterator 会直接调用上面的函数 所以可以省略
 template <class ForwardIterator, class Distance>
-inline void __advance(ForwardIterator& i, Distance n, bidirectional_iterator_tag) {
-    __advance(i, n, input_iterator_tag());
+inline void __advance(ForwardIterator& i, Distance n, forward_iterator_tag) {
+    __advance(i, n, input_iterator_tag());  // 创建一个临时对象
 }
 
 template <class BidiectionalIterator, class Distance>
@@ -361,7 +357,7 @@ inline void __advance(BidiectionalIterator& i, Distance n, bidirectional_iterato
 
 template <class RandomAccessIterator, class Distance>
 inline void __advance(RandomAccessIterator& i, Distance n, random_access_iterator_tag) {
-    i += n;
+    i += n;  // 随机访问
 }
 ```
 
