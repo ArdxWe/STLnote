@@ -112,6 +112,80 @@ void vector<T, Alloc>::insert_aux(iterator positon, const T& x) {
 }
 ```
 
+可以通过下图理解:
+![push_back](./image/4-1.jpg)
+
+`pop_back` :
+
+```cpp
+// 去掉尾端元素
+void pop_back() {
+    --finish;  // 更改尾部迭代器
+    destroy(finish);  // 析构
+}
+```
+
+`erase` :
+
+```cpp
+// 去掉指定区间所有元素
+iterator erase(iterator first, iterator last) {
+    iterator i = copy(last, finish, first);  // last 到 finish 之间的值移动到 first 之后
+    destroy(i, finish);  // 析构
+    finish = finish - (last - first);  // 更改尾部迭代器
+    return first;
+}
+```
+
+可以通过下图来理解:
+
+![erase(first, last)](./image/4-2.jpg)
+
+```cpp
+// 清除某个位置的元素
+iterator erase(iterator position) {
+    if (positon + 1 != end()) {
+        copy(position+1, finish, position);
+    }
+    finish--;
+    destroy(finish);
+}
+
+void clear() {
+    erase(begin(), end());
+}
+```
+
+`insert` :
+
+```cpp
+// 从 positon 开始 插入 n 个元素 初值为 x
+template <class T, class Alloc>
+void vector<T, Alloc>::insert(iterator position, size_type n, const T& x) {
+    if (n != 0) {
+        if (size_type(end_of_storage - finish) >= n) {  // 备用空间够
+            T x_copy = x;
+            const size_type elems_after = finish - position;  // 插入点离尾部的距离
+            iterator old_finish = finish;
+            if (elems_after > n) {
+                uninitialized_copy(finish - n, finish, finish);  // 挪位置构造
+                finish += n;
+                copy_backend(position, old_finish - n, old_finish);  // 后移
+                fill(position, position + n, x_copy);  // 填充
+            }
+            else {
+                uninitialized_fill_n(finish, n - elems_after, x_copy);  // 填充值
+                finish += n - elems_after;
+                uninitialized_copy(position, old_finish, finish);  // 往后移
+                finish += elems_after;
+                fill(positon, old_finish, x_copy);  // 填充值
+            }
+        }
+        else {}
+    }
+}
+```
+
 ## list
 
 节点设计:
