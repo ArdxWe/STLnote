@@ -14,7 +14,7 @@
 template <class T, class Alloc = alloc>  // T代表容器内嵌型别, 空间适配器默认使用第二级空间适配器 所以定义时可以 vector<int>
 class vector {
     public:
-    // 嵌套型别定义 如果你不懂 请看第三章 traits 部分
+    // 嵌套型别定义
     typedef T value_type;
     typedef value_type* pointer;
     typedef value_type* iterator;  // 迭代器是原生指针
@@ -26,6 +26,7 @@ class vector {
 
     typedef simple_alloc<value_type, Alloc> data_allocator;  // 空间配置器
 
+    // 迭代器是原生指针 value_type*
     iterator start;  // 头
     iterator finish;  // 使用元素的尾部
     iterator end_of_storage;  // 可用空间的尾部
@@ -58,7 +59,9 @@ iterator allocate_and_fill(size_type n, const T& x) {
 }
 ```
 
-看 `vector` 的插入函数 `push_back` :
+看几个经典的函数
+
+ `push_back` :
 
 ```cpp
 void push_back(const T& x) {
@@ -71,12 +74,13 @@ void push_back(const T& x) {
     }
 }
 
+// 指定位置插入值
 template <class T, class Alloc>
 void vector<T, Alloc>::insert_aux(iterator positon, const T& x) {
     if (finish != end_of_storage) {  // 还有空间
         construct(finish, *(finish-1));  // 最后一个元素复制到新的空间
         finish++;
-        T x_copy = x;  // 不是很懂这里为什么要保存 x
+        T x_copy = x;  // 要保存 x 的唯一可能是 x 很有可能是 vector 一个元素的引用 copy_backend 很有可能会修改
         copy_backend(positon, finish - 2, finish - 1);  // positon 到 finish - 2 往后移动
         *positon = x_copy;  // 赋值
     }
