@@ -131,7 +131,7 @@ void pop_back() {
 // 去掉指定区间所有元素
 iterator erase(iterator first, iterator last) {
     iterator i = copy(last, finish, first);  // last 到 finish 之间的值移动到 first 之后
-    destroy(i, finish);  // 析构
+    destroy(i, finish);  // 析构 似乎会内存泄漏
     finish = finish - (last - first);  // 更改尾部迭代器
     return first;
 }
@@ -148,7 +148,7 @@ iterator erase(iterator position) {
         copy(position+1, finish, position);
     }
     finish--;
-    destroy(finish);
+    destroy(finish);  // 似乎会内存泄漏
 }
 
 void clear() {
@@ -181,10 +181,39 @@ void vector<T, Alloc>::insert(iterator position, size_type n, const T& x) {
                 fill(positon, old_finish, x_copy);  // 填充值
             }
         }
-        else {}
+        else {  // 备用空间并不够用 需要额外配置
+            const size_type old_size = size();
+            const size_type len = old_size + max(old_size, n);  // 新长度 旧长度两倍 或者 旧长度 + 新增元素个数
+            iterator new_start = data_allocator::allocate(len);  // 配置内存
+            iterator new_finish = new_start;
+            __STL_TRY {
+                // [start, position) 直接 copy
+                new_finish = uninitialized_copy(start, position, new_start);
+                // insert n
+                new_finish = uninitialized_fill_n(new_finish, n, x);
+                // [position, finish) 直接 copy
+                new_finish = uninitialized_copy(position, finish, new_finish);
+            }
+        # ifdef __STL_USE_EXCEPTIONS
+            catch (...) {
+                destroy(new_start, new_finish);  // 析构
+                data_allocator::deallocate(new_start, len);  // 回收内存 注意范围
+                throw;
+            }
+        # endif  /* _STL_USE_EXCEPTIONS */
+            // 释放原来的 vector
+            destroy(start, finish);
+            deallocate();
+            // 更新标记
+            start = new_start;
+            finish = new_finish;
+            end_of_storage = new_start + len;
+        }
     }
 }
 ```
+
+思想非常简单: 拷贝 赋值 更新标记 内存不够时重新申请一块 不再赘述.
 
 ## list
 
@@ -222,7 +251,7 @@ struct __list_iterator {
     // constructor
     __list_iterator(link_type x) : node(x) {}  // 节点指针
     __list_iterator() {}
-    __list_iterator(const iterator& x) : node(x.node) {}  // iterator 的引用
+    __list_iterator(const iterator& x) : node(x.node) {}  // 拷贝构造
     //  == 看指向节点的指针
     bool operator==(const self& x) const {
         return node == x.node;
@@ -235,7 +264,7 @@ struct __list_iterator {
     reference operator*() const {
         return (*node).data;
     }
-    // -> 返回对应数据的指针
+    // -> 成员存取运算子的标准做法
     pointer operator->() const {
         return &(operator*());
     }
@@ -250,12 +279,12 @@ struct __list_iterator {
         ++(*this);
         return tmp;
     }
-
+    // --i
     self& operator--() {
         node = (link_type) ((*node).prev());
         return *this;
     }
-
+    // i--
     self operator--(int) {
         self tmp = *this;
         --(*this);
@@ -271,20 +300,21 @@ template <class T, class Allloc = alloc>  // 默认使用 alloc
 class list {
     protected:
 
+    link_type node;  // 节点指针
     typedef __list_node<T> list_node;
-    typedef simple_alloc<list_node, Alloc> list_node_allocator;
-
+    typedef simple_alloc<list_node, Alloc> list_node_allocator;  // 空间配置器
+    // 配置节点
     link_type get_node() {
         return list_node_allocator::allocate();
     }
-
+    // 释放节点
     link_type put_node(link_type p) {
         return list_node_allocator::deallocate(p);
     }
-
+    // 常见节点
     link_type create_node(const T& x) {
-        link_type p = get_node();
-        construct(&p->data, x);  // 指针 值
+        link_type p = get_node();  // 分配内存
+        construct(&p->data, x);  // 构造
         return p;
     }
 
@@ -292,11 +322,36 @@ class list {
         destroy(&p->data);
         put_node(p);
     }
-
+    // 初始化 一个节点
     void empty_initialize() {
         node = get_node();
         node->next = node;  // 双向链表
         node->prev = node;
+    }
+
+    iterator begin() {
+        return (link_type)((*node).next);
+    }
+
+    iterator end() {
+        return node;
+    }
+
+    bool empty() const {
+        return node->next == node;
+    }
+
+    size_type size() const {
+        size_type result = 0;
+        distance(begin(), end(), result);  // 全局函数
+        return result;
+    }
+
+    reference front() {
+        return *(begin());
+    }
+    reference back() {
+        return *(--end());
     }
 
     public:
@@ -304,6 +359,8 @@ class list {
     list() {
         empty_initialize();
     }
+
+    typedef list_node* link_type;
 }
 ```
 
@@ -318,7 +375,7 @@ interator insert(iterator positon, const T& x) {
     // 双向链表串起来
     link_type tmp = create_node(x);
     tmp->next = positon.node;
-    rmp->prev = position.node->prev;
+    tmp->prev = position.node->prev;
     (link_type(positon.node->prev))->next = tmp;
     positon.node->prev = tmp;
     return tmp;
