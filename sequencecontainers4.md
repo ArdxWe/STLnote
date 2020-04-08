@@ -406,6 +406,9 @@ class deque {
 }
 ```
 
+可以通过下图理解:
+
+![deque](./image/4-3.jpg)
 迭代器:
 
 ```cpp
@@ -416,7 +419,7 @@ struct __deque_iterator {
     static size_t buffer_size() {
         return __deque_buf_size(BufSiz, sizeof(T));
     }
-
+    // traits 型别
     typedef random_access_iterator_tag iterator_category;
     typedef T value_type;
     typedef Ptr Pointer;
@@ -427,10 +430,10 @@ struct __deque_iterator {
     typedef __deque_iterator self;
 
 
-    T* cur;
-    T* first;
-    T* last;
-    map_pointer node;
+    T* cur;  // 当前所知元素的指针
+    T* first;  // 缓冲区头部指针
+    T* last;  // 缓冲区尾部指针
+    map_pointer node;  // map 指针
     ...
 }
 
@@ -439,6 +442,10 @@ inline size_t __deque_buf_size(size_t n, size_t sz) {
     return n != 0 ? n : (sz < 512 ? size_t(512 / sz) : size_t(1));
 }
 ```
+
+可以通过下图来理解:
+
+![deque](./image/4-4.jpg)
 
 指针运算可能需要跳跃缓冲区
 
@@ -452,17 +459,17 @@ void set_node(map_pointer new_node) {
 
 // 重载运算符
 reference operator*() const {
-    return *cur;
+    return *cur;  // 迭代器解引用当然是当前元素
 }
 
 pointer operator->() const {
-    return &(operator*());
+    return &(operator*());  // 当前元素的指针
 }
 
 difference_type operator-(const self& x) const {
     return difference_type(buffer_size()) * (node - x.node - 1) + (cur - first) + (x.last - x.cur))   // 计算缓冲区距离
 }
-
+// ++i
 self& operator++() {
     cur++;
     if (cur == last) {  // 跳跃缓冲区
@@ -486,7 +493,7 @@ self& operator--() {
     cur--;  // 切换到前一个
     return *this;
 }
-
+  // 固定写法
 self operator--(int) {
     self tmp = *this;
     --*this;
@@ -496,7 +503,7 @@ self operator--(int) {
 // 随机存取
 self& operator+=(difference_type n) {
     difference_type offset = n + (cur - first);  // 与当前迭代器 first 的距离
-    if (offset >==0 && offset < difference_type(buffer_size())) {
+    if (offset >= 0 && offset < difference_type(buffer_size())) {
         // 在当前缓冲区
         cur += n;
     }
@@ -514,7 +521,7 @@ self operator+(difference_type n) const {
 }
 
 self& operator-=(difference_type n) const {
-    return *this -= -n;
+    return *this += -n;
 }
 
 self operator-(difference_type n) const {
@@ -536,7 +543,7 @@ bool operator!=(const self& x) const {
 }
 
 bool operator<(const self& x) const {
-    return (node == x.node) ? (cur < x.cur) : (node < x.node);
+    return (node == x.node) ? (cur < x.cur) : (node < x.node);  // 在整个 map 的先后次序
 }
 ```
 
@@ -550,7 +557,7 @@ class deque {
     typedef T value_type;
     typedef value_type* pointer;
     typedef size_t size_type;
-    typedef __deque_iterator<T, T&, T*, BufSiz> iterator;
+    typedef __deque_iterator<T, T&, T*, BufSiz> iterator;  // 参见迭代器实现可知 默认 512 bytes
 
     protected:
 
@@ -619,8 +626,8 @@ void deque<T, Alloc, BufSize>::create_map_and_nodes(size_type num_elements) {
     // 设置 start 和 finish 两个迭代器
     start.set_node(nstart);
     finish.set_node(nfinish);
-    start.cur = start.first;
-    finish.cur = finish.first + nums_elements % buffer_size();
+    start.cur = start.first;  // start 的起始位置
+    finish.cur = finish.first + nums_elements % buffer_size();  // 最后一个缓冲区拥有元素的最后一个位置的下一个位置
 }
 ```
 
@@ -629,7 +636,7 @@ void deque<T, Alloc, BufSize>::create_map_and_nodes(size_type num_elements) {
 ```cpp
 void push_back(const value_type& t) {
     if (finish.cur != finish.last - 1) {
-        // 缓冲区还有大于等于 2 个的位置
+        // 缓冲区不是只有一个位置
         construct(finish.cur, t);
         ++finish.cur;
     }
@@ -658,28 +665,29 @@ void reserve_map_at_back(size_type nodes_to_add = 1) {
 
 template <class T, class Alloc, size_t BufSize>
 void deque<T, Alloc, BufSize>::reallocate_map(size_type nodes_to_add, bool add_at_front) {
-    size_type old_num_nodes = finish.node - start.node + 1;
-    size_type new_num_nodes = old_num_nodes + nodes_to_add;
+    size_type old_num_nodes = finish.node - start.node + 1;  // 以前拥有的 node 个数
+    size_type new_num_nodes = old_num_nodes + nodes_to_add;  // 新的 node 个数
 
     map_pointer new_nstart;
     if (map_size > 2 * new_num_nodes) {
         new_nstart = map + (map_size - new_num_nodes) / 2 + (add_at_front ? nodes_to_add : 0);
-        if (new_nstart < start.node) {
+        if (new_nstart < start.node) {  // 往前移动需要从前到后复制
             copy(start.node, finish.node + 1, new_nstart);
         }
         else {
-            copy_backend(start.node, finish.node + 1, new_nstart + old_num_nodes);
+            copy_backend(start.node, finish.node + 1, new_nstart + old_num_nodes);  // 最后一个参数是尾指针
         }
     }
     else {
-        size_type new_map_size = map_size + max(map_size, nodes_to_add) + 2;
+        size_type new_map_size = map_size + max(map_size, nodes_to_add) + 2;  // 新的 map_size
         map_pointer new_map = map_allocator::allocate(new_map_size);
         new_nstart = new_map + (new_map_size - new_num_nodes) / 2 + (add_at_front ? nodes_to_add : 0);
         copy(start.node, finish.node + 1, new_nstart);
-        map_allocator::deallocate(map, map_size);
-        map = new_map;
+        map_allocator::deallocate(map, map_size);  // 释放之前的内存
+        map = new_map;  // 换成新的
         map_size = new_map_size;
     }
+    // 更新迭代器
     start.set_node(new_nstart);
     finish.set_node(new_nstart + old_num_nodes - 1);
 }
