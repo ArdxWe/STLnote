@@ -819,7 +819,7 @@ bool operator<(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
 
 ## `heap`
 
-`heap` 本身并不属于 `STL` 容器组件, 它是 下一节 `priority queue` 的助手.
+`heap` 本身并不属于 `STL` 容器组件, 它是下一节 `priority queue` 的助手.
 
 ```cpp
 // push
@@ -876,11 +876,11 @@ void __adjust_heap(RandomAccessIterator first, Distance holeIndex, Distance len,
         holeIndex = secondIndex;  // 往下移动
         secondChild = 2 * (secondChild + 1);
     }
-    if (secondChild == len) {  // 没有右子节点的情况
+    if (secondChild == len) {  // 没有右子节点只有左子节点的情况
         *(first + holeIndex) = *(first + (secondChild - 1));  // 一定是加到叶子节点所以不用判断 直接上移
         holeIndex = secondChild - 1;
     }
-    // value 尚未插入
+    // 插入 value
     *(first + holeIndex) = value;  // 我觉得应该加这一句
     ...
 }
@@ -928,7 +928,7 @@ void __make_heap(RandomAccessIterator first, RandomAccessIterator last, Distance
 template <class T, class Sequence = Vector<T>, class Compare = less<typename Sequence::value_type>>
 class priority_queue {
     public:
-    // traits 型别
+    // 直接使用 deque
     typedef typename Sequence::value_type value_type;
     typedef typename Sequence::size_type size_type;
     typedef typename Sequence::reference reference;
@@ -969,7 +969,7 @@ class priority_queue {
     void push(const value_type& x) {
         __STL_TRY {
             c.push_back(x);  // vector push
-            push_heap(c.begin(), c.end(), comp);  // 调整堆
+            push_heap(c.begin(), c.end(), comp);  // 调整堆 调用此函数 x 已经插入
         }
         __STL_UNWIND(c.clear());
     }
@@ -1044,7 +1044,6 @@ struct __slist_iterator : public : __slist_iterator_base {  // 继承
     typedef __slist_iterator<T, const T&, const T*> const_iterator;
     typedef __slist_iterator<T, Ref, Ptr> self;
 
-    // traits 型别
     typedef T value_type;
     typedef Ptr pointer;
     typedef Ref reference;
@@ -1064,7 +1063,7 @@ struct __slist_iterator : public : __slist_iterator_base {  // 继承
     }
 
     self& operator++() {
-        incr();
+        incr();  // 前进一个节点
         return *this;
     }
     self operator++(int) {
