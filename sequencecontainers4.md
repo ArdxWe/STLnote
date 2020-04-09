@@ -704,17 +704,17 @@ class stack {
     friend bool operator==__STL_NULL_TMPL_ARGS(const stack&, const stack&);
     friend bool operator<__STL_NULL_TMPL_ARGS(const stack&, const stack&);
     public:
-
+    // 直接使用 deque 的型别定义
     typedef typename Sequence::value_type value_type;
     typedef typename Sequence::size_type size_type;
     typedef typename Sequence::reference reference;
     typedef typename Sequence::const_reference const_reference;
 
     protected:
-    Sequence c;
+    Sequence c;  // 底层容器
 
     public:
-
+    // 完全利用 deque
     bool empty() const {
         return c.empty();
     }
@@ -740,6 +740,7 @@ class stack {
     }
 };
 
+// 通过 deque 判断
 template <class T, clas Sequence>
 bool operator==(const stack<T, Sequence>& x, const stack<T, Sequence>& y) {
     return x.c == y.c;
@@ -797,20 +798,20 @@ class queue {
     }
 
     void push(const value_type& x) {
-        c.push_back(x);
+        c.push_back(x);  // 尾部添加
     }
 
     void pop() {
-        c.pop_front();
+        c.pop_front();  // 头部出
     }
 };
 
-template <class T, clas Sequence>
+template <class T, class Sequence>
 bool operator==(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
     return x.c == y.c;
 }
 
-template <class T, clas Sequence>
+template <class T, class Sequence>
 bool operator<(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
     return x.c < y.c;
 }
