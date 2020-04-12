@@ -191,5 +191,156 @@ protected:
         __STL_UNWIND(put_node(temp));
         return tmp;  // 返回指针
     }
+
+    link_type clone_node(link_type x) {
+        link_type tmp = create_node(x->value_field);
+        tmp->color = x->color;
+        tmp->left = 0;
+        tmp->right = 0;  // clone 为什么没有 tmp->parent ?
+        return tmp;
+    }
+
+    void destroy_node(link_type p) {
+        destroy(&p->value_field);  // 析构
+        put_node(p);  // 回收
+    }
+
+protected:
+    // 内部维护三个数据
+    size_type node_count;  // 实际节点个数
+    link_type header;  // 头指针 实际不存数据 左指向最小 右指向最大 parent 指向根节点
+    Compare key_compare;  // 比较
+
+    // 方便取得 header 成员的三个函数
+    // 需要强制转换为引用类型吗 一般都是返回实际对象 参数加个引用就好
+    // 类似于 return (link_type)header->parent
+    link_type& root() const {
+        return (link_type&)header->parent;  // header 的父节点指向实际 rb-tree 的根节点
+    }
+
+    link_type& leftmost() const {
+        return (link_type&)header->left;  // header 左指向最小节点
+    }
+
+    link_type& rightmost() const {
+        return (link_type&)header->right;  // header 右边部分指向最大节点
+    }
+
+    // 以下六个函数方便取得 header 成员
+    // 强制转换为引用总觉得很变扭
+    static link_type& left(link_type x) {
+        return (link_type&)(x->left);
+    }
+
+    static link_type& right(link_type x) {
+        return (link_type&)(x->right);
+    }
+
+    static link_type& parent(link_type x) {
+        return (link_type&)(x->parent);
+    }
+
+    static reference value(link_type x) {
+        return (link_type&)(x->value_field);
+    }
+
+    static const Key& key(link_type x) {
+        return KeyOfValue()(value(x));  // 这是什么语法...
+    }
+
+    static color_type& color(link_type x) {
+        return (color_type&)(x->color);
+    }
+
+    // 以下六个函数方便取得 header 成员
+    // 针对 base_ptr
+    static link_type& left(base_ptr x) {
+        return (link_type&)(x->left);
+    }
+
+    static link_type& right(base_ptr x) {
+        return (link_type&)(x->right);
+    }
+
+    static link_type& parent(base_ptr x) {
+        return (link_type&)(x->parent);
+    }
+
+    static reference value(base_ptr x) {
+        return ((link_type)x)->value_field;
+    }
+
+    static const Key& key(base_ptr x) {
+        return KeyOfValue()(value((link_type(x)));  // 这是什么语法...
+    }
+
+    static color_type& color(base_ptr x) {
+        return (color_type&)(link_type(x)->color);
+    }
+
+    // 求极大值 极小值
+    static link_type minimum(link_type x) {
+        return (link_type) __rb_tree_node_base::minimum(x);
+    }
+
+    static link_type maximum(link_type x) {
+        return (link_type) __rb_tree_node_base::maximum(x);
+    }
+
+public:
+    typedef __rb_tree_iterator<value_type, reference, pointer> iterator;  // 迭代器
+
+private:
+    iterator __insert(base_ptr x, base_ptr y, const value_type& v);
+    link_type __copy(link_type x, link_type p);
+    void __erase(link_type x);
+    void init() {  // 创建 header
+        header = get_node();
+        color(header) = __rb_tree_red;  // red
+
+        root() = 0;  // 父节点
+        leftmost() = header;  // 左
+        rightmost() = header;  // 右
+    }
+
+public:
+    rb_tree(const Compare& comp = Compare()) : node_count(0), key_compare(comp) {  // 初始化三个数据 可以指定比较
+        init();  // 初始化 header
+    }
+
+    ~rb_tree() {
+        clear();
+        put_node(header);
+    }
+
+    rb_tree<Key, Value, KeyOfValue, Compare, Alloc>& operator=(const rb_tree<Key, Value, KeyOfValue, Compare, Alloc>& x);
+
+    Compare key_comp() const {  // 当前对象的比较
+        return key_compare;
+    }
+
+    iterator begin() {
+        return leftmost();  // 最小节点
+    }
+
+    iterator end() {
+        return rightmost();  // 最大节点
+    }
+
+    bool empty() {
+        return node_count == 0;
+    }
+
+    size_type size() const {
+        return node_count;
+    }
+
+    size_type max_size() const {  // ffffffff...
+        return size_type(-1);
+    }
+
+    pair<iterator, bool> insert_unique(const value_type& x);
+    iterator insert_equal(const value_type& x);
+    ...
 };
 ```
