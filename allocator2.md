@@ -263,7 +263,7 @@ union obj {
 
 可以这样来理解: `obj->client_data` 可以视为当前区块的指针, 类型为 `char*` ,  `obj->free_list_link` 存储的内容是下个 `obj` 的地址, 构成链表, 如下图.
 
-![free-lists](./image/1.jpg)
+![free-lists](./image/2-1.jpg)
 
 第二级配置器的部分实现:
 
@@ -360,7 +360,7 @@ static void* allocate(size_t n) {
 
 可以通过下图理解:
 
-![allocate()](./image/2.jpg)
+![allocate()](./image/2-2.jpg)
 
 #### 空间释放 `deallocate()`
 
