@@ -344,3 +344,85 @@ public:
     ...
 };
 ```
+
+### 元素操作
+
+`RB-tree` 提供两种插入操作:
+
+* `insert_unique()` : `key` 独一无二
+* `insert_equal()` : `key` 可以重复
+
+```cpp
+// insert_equal
+template <class Key, class Value, class KeyOfValue, class Compare, class Alloc>
+typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::iterator rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::insert_equal(const Value& v) {
+    link_type y = header;  // header
+    link_type x = root(); // 根节点
+    while (x != 0) {
+        y = x;
+        x = key_compare(KeyOfValue()(v), key(x)) ? left(x) : right(x);  // 大往左 小往右
+    }
+    return __insert(x, y, v);  // 插入位置 父节点 值
+}
+
+// insert_unique
+template <class Key, class Value, class KeyOfValue, class Compare, class Alloc>
+pair<typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::iterator, bool> rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::insert_unique(const Value& v) {
+    link_type y = header;  // header
+    link_type x = root(); // 根节点
+    bool comp = true;
+    while(x != 0) {
+        y = x;
+        comp = key_compare(KeyOfValue()(v), key(x));
+        x = comp ? left(x) : right(x);  // 大往左 小往右
+    }
+    iterator j = iterator(y);  // 插入节点父节点的迭代器
+    if (comp) {  // 应插入左侧
+        if (j == begin()) {  // 父节点为最左节点 比最小的小 直接插入即可
+            return pair<iterator, bool>(__insert(x, y, v), true);
+        }
+        else {
+            --j;  // 得到最近的比 v 小的迭代器
+        }
+    }
+    if (key_compare(key(j.node), KeyOfValue()(v))) {  // 不存在相等
+        return pair<iterator, bool>(__insert(x, y, v), true);
+    }
+    return pair<iterator, bool>(j, false);  // 相等 返回相等的节点对应的迭代器 和 false
+}
+
+// __insert 实际插入
+template <class Key, class Value, class KeyOfValue, class Compare, class Alloc>
+typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::iterator rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::__insert(base_ptr x_, base_ptr y_, const Value& v) {
+    link_type x = link_type(x_);  // 强转为子类型指针
+    link_type y = link_type(y_);
+    link_type z;
+
+    if (y == header || x != 0 || key_compare(KeyOfValue()(v), key(y))) {
+        z = create_node(v);
+        left(y) = z;  // 插入 y 左侧 改变 y->left
+        if (y  == header) {
+            root() = z;
+            rightmost() = z;
+        }
+        elif (y == leftmost()) {
+            leftmost() = z;
+        }
+    }
+    else {  // 插入右侧
+        z = create_node(v);
+        right(y) = z;  // 插入 y 右侧 更改 y->right
+        if (y == rightmost()) {  // 如果 y 本身为最右 更改最右
+            rightmost()  = z;
+        }
+    }
+    // 更新新节点的 左 右 父亲指针
+    parent(z) = y;
+    left(z) = 0;  // 一定是叶子节点 所以左右都为 nullptr
+    right(z) = 0;
+
+    __rb_tree_rebalance(z, header->parent);  // 调整平衡 参数为 新增节点 根节点
+    ++node_count;
+    return iterator(z);  // 返回新增节点的迭代器
+}
+```
