@@ -426,3 +426,55 @@ typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::iterator rb_tree<Key, 
     return iterator(z);  // 返回新增节点的迭代器
 }
 ```
+
+调整 `RB-tree` 旋转和变色
+
+```cpp
+// 插入节点后令树平衡
+inline void __rb_tree_rebalance(__rb_tree_node_base* x, __rb_tree_node_base*& root) {  // 新增节点 树的根节点
+    x->color = __rb_tree_red;  // 新节点为红 保证性质1: 任意一结点到每个叶子结点的路径都包含数量相同的黑结点
+    while (x != root && x->parent->color == __rb_tree_red) {  // 父节点为红 违反性质5: 红节点子节点必为黑色
+        if (x->parent == x->parent->parent->left) {  // 父节点为祖父节点左子节点
+            __rb_tree_node_base* y = x->parent->parent->right;  // y 为伯父节点
+            // 四种情况之一: 父节点为红 父节点为祖父节点的左子节点 伯父节点为红
+            if (y && y->color == __rb_tree_red) {  // 伯父节点为红
+                x->parent->color = __rb_tree_black;  // 父节点先改为黑
+                y->color = __rb_tree_black;  // 伯父节点改为黑色
+                x->parent->parent->color = __rb_tree_red;   // 祖父节点改为红
+                x = x->parent->parent;  // 显然若祖父节点由黑改为红 祖父节点的父节点若为红则会违反性质5: 红节点子节点必为黑色 所以视祖父节点为新增节点 继续 while 循环
+            }
+            // 四种情况之二: 父节点为红 父节点为祖父节点的左子节点 伯父节点为黑 ( null 视为黑色)
+            else {
+                if (x == x->parent->right) {
+                    x = x->parent;
+                    __rb_tree_rotate_left(x, root);  // 左旋 参数: 左旋点 根节点
+                }
+                x->parent->color = __rb_tree_black;  // x 父节点改为红色
+                x->parent->parent->color = __rb_tree_red;  // x 祖父节点改为红色
+                __rb_tree_rotate_right(x->parent->parent, root);  // 右旋 参数 右旋点 根节点
+            }
+        }
+        else {  // 父节点为祖父节点右子节点
+            __rb_tree_node_base* y = x->parent->parent->left;  // 伯父节点
+            // 四种情况之三: 父节点为红 父节点为祖父节点的右子节点 伯父节点为红
+            if (y && y->color == __rb_tree_red) {
+                x->parent->color = __rb_tree_black;
+                y->color = __rb_tree_black;
+                x->parent->parent->color = __rb_tree_red;
+                x = x->parent->parent;  // 往上走 继续 while
+            }
+            // 四种情况之四: 父节点为红 父节点为祖父节点的右子节点 伯父节点为黑
+            else {
+                if (x == x->parent->left) {
+                    x = x->parent;
+                    __rb_tree_rotate_right(x, root);
+                }
+                x->parent->color = __rb_tree_black;
+                x->parent->parent->color = __rb_tree_red;
+                __rb_tree_rotate_left(x->parent->parent, root);
+            }
+        }
+    }  // end while
+    root->color = __rb_tree_black;  // 置根节点为黑 保持性质2: 根节点为黑色
+}
+```
