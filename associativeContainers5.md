@@ -478,3 +478,53 @@ inline void __rb_tree_rebalance(__rb_tree_node_base* x, __rb_tree_node_base*& ro
     root->color = __rb_tree_black;  // 置根节点为黑 保持性质2: 根节点为黑色
 }
 ```
+
+左旋和右旋函数:
+
+```cpp
+// 左旋
+inline void __rb_tree_rotate_left(__rb_tree_node_base* x, __rb_tree_node_base*& root) {  // 左旋节点 根节点
+    __rb_tree_node_base* y = x->right;  // y 为左旋点的右子节点
+    x->right = y->left;  // 先接上
+    if (y->left != 0) {
+        y->left->parent = x;  // 设定父节点
+    }
+    y->parent = x->parent;  // 新的顶点接管 x 的父节点
+
+    if (x == root) {  // 若 x 为根节点 更新 root 注意: 参数 root 为引用
+        root = y;
+    }
+    else if (x == x->parent->left) {  // x 父节点接管 y
+        x->parent->left = y;
+    }
+    else {
+        x->parent->right = y;
+    }
+    // 非常自然
+    y->left = x;
+    x->parent = y;
+}
+
+// 右旋
+// 类比左旋 不再注释
+inline void __rb_tree_rotate_right(__rb_tree_node_base* x, __rb_tree_node_base* root) {
+    __rb_tree_node_base* y = x->left;
+    x->left = y->right;
+    if (y->right != 0) {
+        y->right->parent = x;
+    }
+    y->parent = x->parent;
+
+    if (x == root) {
+        root = y;
+    }
+    else if (x == x->parent->right) {
+        x->parent->right = y;
+    }
+    else {
+        x->parent->left = y;
+    }
+    x->right = x;
+    x->parent = y;
+}
+```
