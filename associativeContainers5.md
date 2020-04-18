@@ -528,3 +528,115 @@ inline void __rb_tree_rotate_right(__rb_tree_node_base* x, __rb_tree_node_base* 
     x->parent = y;
 }
 ```
+
+## `set`
+
+所有元素会根据键值自动排序, 所以 `set` 的迭代器不可以改变 `set` 的元素值, 是一种 `constant iterators` .
+
+标准 `set` 以 `RB-tree` 为底层机制, 几乎所有的 `set` 操作, 都转为 `RB-tree` 的操作. 看源代码:
+
+```cpp
+class set {
+public:
+    // typedefs
+    typedef Key key_type;
+    typedef Key value_type;
+    // key_compare 与 value_compare 使用同一个比较函数
+    typedef Compare key_compare;
+    typedef Compare value_compare;
+
+private:
+    template <class T>
+    struct identity : public unary_function<T, T>  
+    {
+        const T& operator()(const T& x) const {return x;}
+    };
+
+    typedef rb_tree<key_type, value_type, identity<value_type>, key_compare, Alloc> rep_type;
+    rep_type t;  // 用 rb-tree 表现 set
+
+public:
+    // 直接使用 rb-tree
+    typedef typename rep_type::const_pointer pointer;  // set 不可更改
+    typedef typename rep_type::const_pointer const_pointer;
+    typedef typename rep_type::const_reference reference;  // set 不可更改
+    typedef typename rep_type::const_reference const_reference;
+    typedef typename rep_type::const_iterator iterator;  // set 不可更改
+    typedef typename rep_type::const_iterator const_iterator;
+    typedef typename rep_type::const_reverse_iterator reverse_iterator;  // set 不可更改
+    typedef typename rep_type::const_reverse_iterator const_reverse_iterator;
+    typedef typename rep_type::size_type size_type;
+    typedef typename rep_type::difference_type difference_type;
+
+    // 默认构造函数 直接构造 t
+    set() : t(Compare()) {}
+
+    // 指定比较函数的情况
+    explicit set(const Compare& comp) : t(comp) {}
+
+    // 指定首尾迭代器
+    template <class InputIterator>
+    set(InputIterator first, InputIterator last) : t(Compare()) {t.insert_unique(first, last)}  // set 不允许相同键值
+
+    // 指定首尾迭代器和比较函数
+    template <class InputIterator>
+    set(InputIterator first, InputIterator last， const Compare& comp) : t(comp) {t.insert_unique(first, last)}  // set 不允许相同键值
+
+    // 拷贝构造
+    set(const set<Key, Compare, Alloc>& x) : t(x.t) {}
+
+    // 赋值
+    set<Key, Compare, Alloc>& operator=(const set<Key, Compare, Alloc>& x) {
+        t = x.t;
+        return *this;
+    }
+
+    // 以下 set 仅传递调用 rb-tree 已经提供
+    key_compare key_comp() const {return t.key_comp(); }
+    value_compare value_comp() const {return t.key_comp(); }
+    iterator begin() const {return t.begin(); }
+    iterator end() const {return t.end(); }
+    reverse_iterator rbegin const {return t.rbigin(); }
+    reverse_iterator rend() const {return t.rend(); }
+    bool empty() const {return t.empty(); }
+    size_type size() const {return t.size(); }
+    size_type max_size() const {return t.max_size(); }
+    void swap(set<Key, Compare, Alloc>& x) {t.swap(x.t); }
+
+    // insert erase
+    // 参数 : 值
+    typedef pair<iterator, bool> pair_iterator_bool;
+    pair<iterator, bool> insert(const value_type& x) {
+        pair<typename, rep_type::iterator, bool> p = t.insert_unique(x);
+        return pair<iterator, bool>(p.first, p.second);
+    }
+
+    // 参数 : 位置 值
+    iterator insert(iterator positon, const value_type& x) {
+        typedef typename rep_type::iterator rep_iterator;
+        return t.insert_unique((rep_iterator&)positon, x);
+    }
+    
+    // 参数 : 首尾迭代器
+    template <class InputIterator>
+    void insert(iterator first, iterator last) {
+        t.insert_unique(first, last);
+    }
+
+    void erase(iterator position) {
+        typedef typename rep_type::iterator rep_iterator;
+        t.erase((rep_iterator&)position);
+    }
+
+    size_type erase(const key_type& x) {
+        return t.erase(x);
+    }
+
+    void erase(iterator first, iterator last) {
+        typedef typename rep_type::iterator rep_iteraotor;
+        t.erase((rep_iteraotor&)first, (rep_iteraotor&)last);
+    }
+
+    void clear() {t.clear(); }
+};
+```
