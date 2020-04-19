@@ -665,5 +665,97 @@ template <class Key, class Compare, class Alloc>
 inline bool operator<(const set<Key, Compare, Alloc>& x, const set<Key, Compare, Alloc>& y) {
     return x.t < y.t;
 }
+```
 
+## `map`
+
+* 根据元素的 `键值` 排序
+* 所有元素都是 `pair` : <键值, 实值>
+* 键不重复
+* 以 `rb-tree` 为底层机制
+
+`pair` 的定义:
+
+```cpp
+// stl_pair.h
+template <class T1, class T2>
+struct pair {
+    typedef T1 first_type;
+    typedef T2 second_type;
+
+    T1 first;
+    T2 second;
+
+    pair() : first(T1()), second(T2()) {}
+    pair(const T1& a, const T2& b) : first(a), second(b) {}
+};
+```
+
+`map` 迭代器不可以改变键值, 但可以改变实值.
+
+```cpp
+template <class Key, class T,
+          class Compare = less<Key>,
+          class Alloc = alloc>
+class map {
+public:
+    // typedefs
+    typedef Key key_type;
+    typedef T data_type;
+    typedef T mapped_type;
+    typedef pair<const Key, T> value_type;
+    typedef Compare key_compare;
+
+    // 作用是 调用 元素比较函数
+    class value_compare : public binary_function<value_type, value_type, bool> {
+        friend class map<Key, T, Comapare, Alloc>;
+
+        protected:
+
+        Compare comp;
+        value_compare(Compare c) : comp(c) {}
+
+        public:
+
+        bool operator()(const value_type& x, const value_type& y) const {
+            return comp(x.first, y.first);
+        }
+    };
+
+private:
+    typedef rb_tree<key_type, value_type, selectlst<value_type>, key_compare, Alloc> rep_type;
+    rep_type t;  // 仅维护一个 红黑树
+
+public:
+    typedef typename rep_type::pointer pointer;
+    typedef typename rep_type::const_pointer const_pointer;
+    typedef typename rep_type::reference reference;
+    typedef typename rep_type::const_reference const_reference;
+    typedef typename rep_type::iterator iterator;
+    typedef typename rep_type::const_iterator const_iterator;
+    typedef typename rep_type::reverse_iterator reverse_iterator;
+    typedef typename rep_type::const_reverse_iterator const_reverse_iterator;
+    typedef typename rep_type::size_type size_type;
+    typedef typename rep_type::difference_type difference_type;
+
+    // 构造
+    map() : t(Compare()) {}
+    explicit map(const Compare& comp) : t(comp) {}
+
+    template <class InputIterator>
+    map(InputIterator first,InputIterator last) : t(Compare()) {
+        t.insert_unique(first, last);
+    }
+
+    template <class InputIterator>
+    map(InputIterator first,InputIterator last, const Compare& comp) : t(comp) {
+        t.insert_unique(first, last);
+    }
+
+    map(const map<Key, T, Compare, Alloc>& x) : t(x.t) {}
+    map<Key, T, Compare, Alloc>& operator=(const map<Key, T, Alloc>& x) {
+        t = x.t;
+        return *this;
+    }
+};
 ```
